@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aivoice"
+version = "0.1.0"
+description = "Local real-time AI voice changer wrapping MeanVC2 (disclosed synthetic media)"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+authors = [{ name = "r3dg0d" }]
+keywords = ["voice-conversion", "meanvc2", "realtime", "pipewire", "synthetic-media", "cli"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Topic :: Multimedia :: Sound/Audio",
+]
+dependencies = [
+  "click>=8.1",
+  "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+audio = ["soundfile>=0.12", "sounddevice>=0.4"]
+hf = ["huggingface_hub>=0.23"]
+cuda = []  # torch/CUDA installed by user for MeanVC2; not forced
+
+[project.scripts]
+aivoice = "aivoice.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aivoice"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/aivoice", "tests", "README.md", "LICENSE", "NOTICE", "CHANGELOG.md", "STATUS.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+  "audio: requires PipeWire/sounddevice (skipped by default without hardware)",
+  "gpu: requires CUDA and MeanVC2 weights",
+]

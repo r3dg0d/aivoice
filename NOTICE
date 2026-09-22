@@ -1,0 +1,16 @@
+aivoice (this wrapper)
+  Copyright 2026 r3dg0d
+  Licensed under the Apache License, Version 2.0.
+
+MeanVC2 upstream (optional vendor checkout / research dependency)
+  Repository: https://github.com/ASLP-lab/MeanVC2
+  Weights: https://huggingface.co/ASLP-lab/MeanVC2
+  Paper: Ma et al., "MeanVC 2: Robust Low-Latency Streaming Zero-Shot Voice Conversion",
+         arXiv:2606.09050, 2026. https://arxiv.org/abs/2606.09050
+  License claim: Apache-2.0 (README badge/prose and HF model card).
+  Compliance gap: GitHub root LICENSE file was missing (API license:null) at packaging
+                  time — we attribute upstream and do NOT relicense their code.
+                  Retain all upstream notices when using the vendor checkout.
+
+Upstream dependencies (WeNet, Vocos, WavLM, fairseq, FunASR, Emilia data, etc.)
+  have their own licenses — track separately; do not redistribute training datasets.

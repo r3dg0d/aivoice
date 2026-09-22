@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Tests
+        run: pytest -q
+        env:
+          AIVOICE_MOCK_DEVICES: "1"
+      - name: Help smoke
+        run: |
+          aivoice --help
+          aivoice devices
+          aivoice models list
+          aivoice profiles list
+        env:
+          AIVOICE_MOCK_DEVICES: "1"
