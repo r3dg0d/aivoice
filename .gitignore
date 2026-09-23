@@ -24,3 +24,6 @@ STATUS.md
 *.onnx
 weights/
 vendor/
+
+# local model/voice caches (never commit)
+*.partial

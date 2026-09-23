@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 — 2026-09-23
+
+- Voice provider architecture (`VoiceProvider`) with `voice-models` catalog client.
+- `aivoice search`, `voices install`, `virtualmic --search` (SEARCH→SELECT→DOWNLOAD→ADAPT→USE).
+- Voice library under XDG (`voices list|info|create|import-rvc|remove|rename|verify`).
+- Safe downloader (resume, checksums, atomic finalize) + zip-slip-safe extraction.
+- Honest RVC v1/v2 inspection (`weights_only` when available) and MeanVC2 **reference-audio** adaptation (not weight conversion).
+- `aivoice doctor`, `providers list|info`, privacy note on search.
+- Unit tests for parser fixtures, archive safety, RVC detect, voices, doctor.
+
 ## 0.1.0 — 2026-09-22
 
 - Initial Linux CLI: `devices`, `live`, `file`, `virtualmic`, `profiles`/`profile`, `benchmark`, `models list|install`.

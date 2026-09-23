@@ -14,7 +14,7 @@
         # CUDA/torch OPTIONAL — devices/models list/--help work without NVIDIA.
         aivoice = python.pkgs.buildPythonApplication {
           pname = "aivoice";
-          version = "0.1.0";
+          version = "0.2.0";
           src = ./.;
           format = "pyproject";
           nativeBuildInputs = with python.pkgs; [ hatchling ];

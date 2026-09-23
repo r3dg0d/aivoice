@@ -1,25 +1,44 @@
 # aivoice
 
-Local **real-time AI voice changer** wrapping [MeanVC2](https://github.com/ASLP-lab/MeanVC2) ([arXiv:2606.09050](https://arxiv.org/abs/2606.09050), weights on [Hugging Face](https://huggingface.co/ASLP-lab/MeanVC2)).
+Local **real-time AI voice conversion** wrapping [MeanVC2](https://github.com/ASLP-lab/MeanVC2) ([arXiv:2606.09050](https://arxiv.org/abs/2606.09050)), with a searchable voice library and honest RVC → MeanVC2 **profile** migration.
 
-This repository is a **thin Linux CLI + PipeWire helpers** around upstream. We prefer subprocess/API integration and an optional vendor checkout under XDG cache after `models install` — we do **not** copy their entire tree into this git repo.
+## Quick start
 
-## Research & consent framing
+```bash
+# Search community catalogs → select → download → build MeanVC2 voice → virtual mic
+aivoice virtualmic --search "Example Voice" --consent-ack
+
+# Use an already-installed voice (fully offline after install)
+aivoice virtualmic --voice "Example Voice" --consent-ack
+
+# Zero-shot from your own reference clip
+aivoice voices create "My Voice" --reference voice.wav
+aivoice virtualmic --voice "My Voice" --consent-ack
+```
+
+Flow:
+
+**SEARCH → SELECT → DOWNLOAD → VALIDATE → IMPORT → MEANVC2 PROFILE → CACHE → USE**
+
+## What “RVC → MeanVC2” actually means
+
+RVC and MeanVC2 are **different architectures**. `aivoice` does **not** convert `.pth` weights into MeanVC2 checkpoints.
+
+MeanVC2 is zero-shot: it conditions on **target reference audio** (WavLM + ECAPA → UTTE). When an RVC package includes legitimate preview/reference speech, `aivoice`:
+
+1. Detects RVC v1/v2 safely (prefer `torch.load(..., weights_only=True)`)
+2. Prepares reference audio
+3. Stores a reusable MeanVC2 voice profile under `~/.local/share/aivoice/voices/`
+
+If no usable reference audio exists, import fails honestly (or records an incomplete RVC-backed entry) instead of inventing a fake conversion.
+
+## Research & consent
 
 For **research, VFX, avatars, filmmaking, consenting demos, and disclosed synthetic media**.
 
-- **No anonymity claims.**
-- Consent gate: `--consent-ack` or `AIVOICE_CONSENT_ACK=1`.
-- Only convert voices you own or have consent to process; disclose synthetic audio when required.
-- Misuse for impersonation, fraud, or harassment is prohibited.
-
-## License (important)
-
-| Layer | License |
-|-------|---------|
-| **Our wrapper** (`aivoice`) | **Apache-2.0** — see [LICENSE](LICENSE) |
-| **MeanVC2 upstream** | README claims **Apache-2.0**, but **GitHub root LICENSE file was missing** (API `license: null`) at packaging time — see [NOTICE](NOTICE). We attribute upstream and **do not relicense** their code. |
-| **HF weights** | Apache-2.0 claimed on model card — retain notices |
+- Consent gate: `--consent-ack` or `AIVOICE_CONSENT_ACK=1`
+- No mic/converted audio upload; search queries go only to the selected catalog provider
+- Use voice models only with necessary rights; do not use generated audio deceptively
 
 ## Install
 
@@ -27,60 +46,52 @@ For **research, VFX, avatars, filmmaking, consenting demos, and disclosed synthe
 pip install -e ".[dev]"
 # optional: pip install -e ".[audio,hf]"
 aivoice --help
-aivoice devices
-aivoice models list
+aivoice doctor
 ```
 
 Nix: `nix develop` via `flake.nix` (CPU-friendly; CUDA/torch not forced).
 
-Weights are **not** in this repo:
+MeanVC2 weights are **not** in this repo:
 
 ```bash
-aivoice models install meanvc2 --yes   # git vendor + HF pull with license ack
+aivoice models install meanvc2 --yes
 ```
 
-CUDA preferred for realtime; CPU fallback is documented (RTF may exceed 1).
+## CLI
 
-## Usage
-
-```bash
-# Devices / models / profiles
-aivoice devices
-aivoice models list
-aivoice profiles list
-aivoice profile create --name alice --reference voice.wav --mode balanced
-
-# Live mic (spawns MeanVC2 runtime when installed)
-aivoice live --reference voice.wav --consent-ack --mode lowest-latency --device cuda
-
-# File conversion
-aivoice file input.wav --reference voice.wav --consent-ack -o out.wav --mode best-quality
-
-# Virtual mic (PipeWire/Pulse null sink + remap source)
-aivoice virtualmic --reference voice.wav --consent-ack --setup-only
-aivoice virtualmic --reference voice.wav --consent-ack
-
-# Benchmark buffer overhead
-aivoice benchmark --frames 50 --consent-ack
-```
+| Command | Purpose |
+|---------|---------|
+| `aivoice search "…"` | Search provider (network) |
+| `aivoice virtualmic --search "…"` | Search → install → virtual mic |
+| `aivoice virtualmic --voice NAME` | Offline installed voice |
+| `aivoice voices list\|info\|remove\|rename\|verify` | Voice library |
+| `aivoice voices create NAME --reference wav` | Zero-shot profile |
+| `aivoice voices import-rvc model.zip` | RVC import → MeanVC2 profile |
+| `aivoice voices install --search "…"` | Install without starting mic |
+| `aivoice providers list\|info` | Catalog capabilities |
+| `aivoice models list\|install` | MeanVC2 **base** models |
+| `aivoice doctor` | Environment checks |
+| `aivoice devices` / `live` / `file` | Devices & conversion |
 
 ### Modes
 
-| Mode | MeanVC2 model | Intent |
-|------|---------------|--------|
-| `lowest-latency` | 40ms | Minimum chunk / steps |
+| Mode | MeanVC2 | Intent |
+|------|---------|--------|
+| `lowest-latency` | 40ms | Minimum chunk |
 | `balanced` | 40ms | Default |
-| `best-quality` | 120ms | Higher quality, more latency |
+| `best-quality` | 120ms | Higher quality |
 
-Expose/override: `--chunk-ms`, `--buffer-chunks`, `--device`, `--mode`.
+### Providers
 
-### Metrics
+`voice-models` talks to [voice-models.com](https://voice-models.com/) using the site’s own `fetch_data.php` search AJAX (no documented public REST API). Downloads follow third-party links (Hugging Face preferred). Google Drive / Mega require manual download + `voices import-rvc`. Rate-limited (~1 req/s). Respect robots.txt / ToS; no CAPTCHA bypass.
 
-End-to-end latency, RTF, sample rate, buffer depth, underruns, dropped chunks, CUDA util (when torch present).
+## License
 
-### Audio stacks
-
-PipeWire / PipeWire-Pulse / ALSA device listing. Virtual mic via `pactl` null-sink + remap-source (PipeWire-compatible) or manual `pw-loopback` / Helvum hints.
+| Layer | License |
+|-------|---------|
+| **Our wrapper** | **Apache-2.0** — [LICENSE](LICENSE) |
+| **MeanVC2 upstream** | README claims Apache-2.0; see [NOTICE](NOTICE) |
+| **HF weights** | Apache-2.0 claimed on model card |
 
 ## Citation
 
@@ -93,12 +104,4 @@ PipeWire / PipeWire-Pulse / ALSA device listing. Virtual mic via `pactl` null-si
 }
 ```
 
-- Paper: https://arxiv.org/abs/2606.09050  
-- Code: https://github.com/ASLP-lab/MeanVC2  
-- Weights: https://huggingface.co/ASLP-lab/MeanVC2  
-
 See [STATUS.md](STATUS.md) for honest limitations.
-
-## License
-
-Apache-2.0 for **this** wrapper — [LICENSE](LICENSE) + [NOTICE](NOTICE).
