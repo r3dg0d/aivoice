@@ -1,4 +1,4 @@
-"""XDG paths for profiles, config, and model/vendor cache."""
+"""XDG paths for profiles, voices, config, and model/vendor/download cache."""
 
 from __future__ import annotations
 
@@ -37,12 +37,24 @@ def vendor_dir() -> Path:
 
 
 def profiles_dir() -> Path:
+    """Legacy profile store (still supported)."""
     return data_home() / "profiles"
+
+
+def voices_dir() -> Path:
+    """Installed voice library (MeanVC2 / RVC profiles)."""
+    return data_home() / "voices"
+
+
+def downloads_dir() -> Path:
+    return cache_home() / "downloads"
 
 
 def ensure_dirs() -> None:
     data_home().mkdir(parents=True, exist_ok=True)
     profiles_dir().mkdir(parents=True, exist_ok=True)
+    voices_dir().mkdir(parents=True, exist_ok=True)
     models_dir().mkdir(parents=True, exist_ok=True)
+    downloads_dir().mkdir(parents=True, exist_ok=True)
     config_home().mkdir(parents=True, exist_ok=True)
     (cache_home() / "vendor").mkdir(parents=True, exist_ok=True)
