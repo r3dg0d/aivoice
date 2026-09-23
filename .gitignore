@@ -19,7 +19,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 dist/
-STATUS.md
 *.pt
 *.onnx
 weights/
