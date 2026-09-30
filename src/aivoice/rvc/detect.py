@@ -37,6 +37,13 @@ class RvcPackageInfo:
         return bool(self.reference_audio)
 
 
+def _is_generated(path: Path, root: Path) -> bool:
+    """Files aivoice itself wrote into a package (never a real recording of the voice)."""
+    if path.name == "_aivoice_placeholder.wav":
+        return True
+    return any(part.startswith(".aivoice") for part in path.relative_to(root).parts)
+
+
 def inspect_path(path: Path) -> RvcPackageInfo:
     path = Path(path)
     if path.is_dir():
@@ -55,7 +62,7 @@ def inspect_path(path: Path) -> RvcPackageInfo:
 
 def inspect_rvc_package(root: Path) -> RvcPackageInfo:
     root = Path(root)
-    files = [p for p in root.rglob("*") if p.is_file()]
+    files = [p for p in root.rglob("*") if p.is_file() and not _is_generated(p, root)]
     rel = [str(p.relative_to(root)) for p in files]
     info = RvcPackageInfo(generation=None, files=sorted(rel), root=str(root))
 

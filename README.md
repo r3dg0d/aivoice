@@ -30,7 +30,39 @@ MeanVC2 is zero-shot: it conditions on **target reference audio** (WavLM + ECAPA
 2. Prepares reference audio
 3. Stores a reusable MeanVC2 voice profile under `~/.local/share/aivoice/voices/`
 
-If no usable reference audio exists, import fails honestly (or records an incomplete RVC-backed entry) instead of inventing a fake conversion.
+If the package has no usable reference audio, `aivoice` can **synthesize one from the RVC model itself** (see below). If that is not possible, import records an incomplete RVC-backed entry and says why, instead of inventing a fake conversion.
+
+### Synthesized references (TTS → RVC)
+
+Many RVC packages ship no demo recording. When a package has a checkpoint but no reference audio, `aivoice` (unless you pass `--no-synthesize` or set `AIVOICE_NO_SYNTH=1`):
+
+1. has a **text-to-speech** engine read a neutral passage (Harvard sentences, or `--synth-text`),
+2. runs that speech through the **RVC model** so it speaks in the model's voice,
+3. uses the result as the MeanVC2 reference.
+
+The voice is labelled `reference_kind: synthesized` (see `aivoice voices info`), because it is a rendering of the model, not a recording of the person. Quality is bounded by the TTS prosody and the RVC model; a real, clean clip (`--reference`) is always better and always wins.
+
+Engines are optional and discovered automatically (`aivoice doctor` lists them):
+
+| Step | Engine | Enable with |
+|------|--------|-------------|
+| TTS | any command | `AIVOICE_TTS_CMD='mytts {text_file} {out}'` |
+| TTS | [Piper](https://github.com/rhasspy/piper) | `piper` on `PATH` + `AIVOICE_PIPER_MODEL=/path/voice.onnx` |
+| TTS | espeak-ng | `espeak-ng` on `PATH` (robotic but dependency-free) |
+| RVC | any command | `AIVOICE_RVC_CMD='myrvc {input} {model} {index} {output}'` (`{version}` is `v1`/`v2`) |
+| RVC | [`rvc-python`](https://pypi.org/project/rvc-python/) | `pip install rvc-python` (pulls torch; downloads its base models on first use) |
+
+Command templates are split like a shell would but run **without** a shell, so paths with spaces or metacharacters stay single arguments.
+
+> **Security:** an RVC `.pth` is a Python pickle. Synthesizing loads it, which executes whatever code it contains. Only synthesize from models you trust. The CLI prints this before it starts.
+
+```bash
+aivoice voices import-rvc model.zip                      # synthesizes if there is no demo audio
+aivoice voices import-rvc model.zip --synth-text "Any text you like."
+aivoice voices import-rvc model.zip --no-synthesize      # old behaviour: incomplete entry
+```
+
+The same applies to `aivoice voices install --search …` and `virtualmic --search …`: a downloaded model with no preview audio now becomes a usable voice. Re-importing a package upgrades an earlier *incomplete* entry instead of failing.
 
 ## Research & consent
 
@@ -66,7 +98,7 @@ aivoice models install meanvc2 --yes
 | `aivoice virtualmic --voice NAME` | Offline installed voice |
 | `aivoice voices list\|info\|remove\|rename\|verify` | Voice library |
 | `aivoice voices create NAME --reference wav` | Zero-shot profile |
-| `aivoice voices import-rvc model.zip` | RVC import → MeanVC2 profile |
+| `aivoice voices import-rvc model.zip` | RVC import → MeanVC2 profile (`--no-synthesize`, `--synth-text`) |
 | `aivoice voices install --search "…"` | Install without starting mic |
 | `aivoice providers list\|info` | Catalog capabilities |
 | `aivoice models list\|install` | MeanVC2 **base** models |

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aivoice"
-version = "0.2.0"
+version = "0.3.0"
 description = "Local real-time AI voice changer wrapping MeanVC2 (disclosed synthetic media)"
 readme = "README.md"
 license = "Apache-2.0"
@@ -28,6 +28,7 @@ dependencies = [
 dev = ["pytest>=8.0"]
 audio = ["soundfile>=0.12", "sounddevice>=0.4"]
 hf = ["huggingface_hub>=0.23"]
+rvc = ["rvc-python>=0.1.5"]  # optional: enables TTS -> RVC reference synthesis (pulls torch)
 cuda = []  # torch/CUDA installed by user for MeanVC2; not forced
 
 [project.scripts]

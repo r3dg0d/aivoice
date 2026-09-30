@@ -8,7 +8,15 @@ from pathlib import Path
 
 from .download import safe_extract
 from .rvc.detect import RvcPackageInfo, inspect_path
-from .voices import VoiceEntry, create_from_reference, find_by_source, slugify
+from .rvc.synth import SynthError, SynthResult, synthesis_disabled, synthesize_reference
+from .voices import (
+    VoiceEntry,
+    create_from_reference,
+    find_by_source,
+    load_voice,
+    remove_voice,
+    slugify,
+)
 
 
 @dataclass
@@ -18,6 +26,7 @@ class AdaptResult:
     message: str
     used_reference: Path | None = None
     engine: str = "meanvc2"
+    synthesized: bool = False
 
 
 PERSON_NOTICE = (
@@ -36,11 +45,17 @@ def adapt_rvc_to_meanvc2(
     source_model_id: str | None = None,
     source_url: str | None = None,
     work_dir: Path | None = None,
+    synthesize: bool | None = None,
+    synth_text: str | None = None,
 ) -> AdaptResult:
     """Build a MeanVC2 voice profile from an RVC package when legitimate reference audio exists.
 
     This does **not** convert RVC `.pth` weights into MeanVC2 checkpoints.
     MeanVC2 is zero-shot and conditions on target reference audio (WavLM+ECAPA → UTTE).
+
+    When the package has no reference audio but does have a checkpoint, a reference is
+    *synthesized* (TTS -> the RVC model itself) unless ``synthesize=False`` or
+    ``AIVOICE_NO_SYNTH=1``. Such voices are marked ``reference_kind = "synthesized"``.
     """
     package = Path(package)
     extract_root = package
@@ -62,7 +77,19 @@ def adapt_rvc_to_meanvc2(
     if ref is None and rvc.reference_audio:
         ref = Path(rvc.reference_audio[0])
 
+    synth: SynthResult | None = None
+    synth_problem: str | None = None
+    if (ref is None or not ref.is_file()) and rvc.checkpoint:
+        want = (not synthesis_disabled()) if synthesize is None else synthesize
+        if want:
+            try:
+                synth = synthesize_reference(rvc, extract_root / ".aivoice_synth", text=synth_text)
+                ref = synth.path
+            except SynthError as e:
+                synth_problem = str(e)
+
     if ref is not None and ref.is_file():
+        _replace_incomplete(name, source_provider, source_model_id)
         voice = create_from_reference(
             name,
             ref,
@@ -72,10 +99,23 @@ def adapt_rvc_to_meanvc2(
             source_url=source_url,
             original_architecture=rvc.generation,
             notes=(
-                "MeanVC2 profile built from package reference/preview audio "
+                "MeanVC2 profile built from a reference synthesized by the RVC model "
+                "(TTS -> RVC); no original recording of the voice was available. "
+                "Not a direct RVC weight conversion."
+                if synth
+                else "MeanVC2 profile built from package reference/preview audio "
                 "(zero-shot conditioning). Not a direct RVC weight conversion."
             ),
-            extra={"rvc": rvc.to_dict(), "adaptation": "reference-audio"},
+            extra={
+                "rvc": rvc.to_dict(),
+                "adaptation": "rvc-synthesized-reference" if synth else "reference-audio",
+                "reference_kind": "synthesized" if synth else "recording",
+                **(
+                    {"synthesis": {"tts": synth.tts_engine, "rvc": synth.rvc_engine, "text": synth.text}}
+                    if synth
+                    else {}
+                ),
+            },
         )
         # stash original checkpoint paths in voice dir for optional RVC fallback later
         if rvc.checkpoint:
@@ -91,12 +131,19 @@ def adapt_rvc_to_meanvc2(
         return AdaptResult(
             voice=voice,
             rvc=rvc,
-            message="MeanVC2 profile created from reference audio",
+            message=(
+                "MeanVC2 profile created from a reference synthesized by the RVC model "
+                f"({synth.tts_engine} TTS -> {synth.rvc_engine}); no original recording existed"
+                if synth
+                else "MeanVC2 profile created from reference audio"
+            ),
             used_reference=ref,
             engine="meanvc2",
+            synthesized=synth is not None,
         )
 
     if prefer_rvc_fallback and rvc.checkpoint:
+        _replace_incomplete(name, source_provider, source_model_id)
         # Record an RVC-backed voice entry (runtime RVC engine may be limited)
         voice = create_from_reference(
             name,
@@ -124,7 +171,13 @@ def adapt_rvc_to_meanvc2(
             message=(
                 "This RVC package does not contain enough target-speaker audio "
                 "to build a reliable MeanVC2 profile. Options: (1) provide a clean "
-                "reference WAV (2) locate provider preview audio (3) use RVC backend when available."
+                "reference WAV (2) locate provider preview audio (3) enable reference "
+                "synthesis (TTS -> RVC): "
+                + (
+                    f"could not synthesize ({synth_problem}); see README 'Synthesized references'."
+                    if synth_problem
+                    else "disabled by --no-synthesize / AIVOICE_NO_SYNTH."
+                )
             ),
             used_reference=None,
             engine="rvc",
@@ -139,6 +192,20 @@ def adapt_rvc_to_meanvc2(
         ),
         engine="none",
     )
+
+
+def _replace_incomplete(name: str, provider: str | None, model_id: str | None) -> None:
+    """Drop a stale *incomplete* entry for the same voice so a better import can replace it."""
+    stale = None
+    if provider and model_id:
+        stale = find_by_source(provider, model_id)
+    if stale is None:
+        try:
+            stale = load_voice(slugify(name))
+        except FileNotFoundError:
+            stale = None
+    if stale is not None and stale.status != "ready":
+        remove_voice(stale.id)
 
 
 def _write_placeholder_note(root: Path, name: str) -> Path:

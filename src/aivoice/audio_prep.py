@@ -8,6 +8,15 @@ import wave
 from dataclasses import dataclass
 from pathlib import Path
 
+# Trim leading and trailing silence only. (silenceremove's stop_periods=1 would cut the
+# clip at the *first* pause inside the speech, keeping just the first phrase.)
+_TRIM_EDGES = (
+    "silenceremove=start_periods=1:start_silence=0.3:start_threshold=-40dB,"
+    "areverse,"
+    "silenceremove=start_periods=1:start_silence=0.3:start_threshold=-40dB,"
+    "areverse"
+)
+
 
 @dataclass
 class PrepResult:
@@ -48,8 +57,7 @@ def prepare_reference(
             "-t",
             str(max_seconds),
             "-af",
-            "silenceremove=start_periods=1:start_silence=0.3:start_threshold=-40dB:"
-            "stop_periods=1:stop_silence=0.4:stop_threshold=-40dB,loudnorm=I=-16:TP=-1.5:LRA=11",
+            _TRIM_EDGES + ",loudnorm=I=-16:TP=-1.5:LRA=11",
             str(dest),
         ]
         r = subprocess.run(cmd, capture_output=True, text=True)
@@ -57,7 +65,7 @@ def prepare_reference(
             notes.append("ffmpeg prep failed; falling back to raw copy")
             shutil.copy2(src, dest)
         else:
-            notes.append("ffmpeg: mono resample + light silence trim + loudnorm")
+            notes.append("ffmpeg: mono resample + edge silence trim + loudnorm")
     else:
         notes.append("ffmpeg not found; copied original reference unchanged")
         shutil.copy2(src, dest)

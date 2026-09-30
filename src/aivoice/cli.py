@@ -327,6 +327,11 @@ def voices_info(name, as_json):
         if k == "extra":
             continue
         click.echo(f"{k}: {val}")
+    kind = (v.extra or {}).get("reference_kind")
+    if kind:
+        synth = (v.extra or {}).get("synthesis") or {}
+        detail = f" ({synth.get('tts')} TTS -> {synth.get('rvc')})" if kind == "synthesized" and synth else ""
+        click.echo(f"reference_kind: {kind}{detail}")
 
 
 @voices_group.command("remove")
@@ -385,7 +390,13 @@ def voices_create(name, reference):
 @click.option("--index", "index_path", type=click.Path(path_type=Path, exists=True), default=None)
 @click.option("--reference", type=click.Path(path_type=Path, exists=True), default=None)
 @click.option("--name", default=None, help="Display name")
-def voices_import_rvc(path, index_path, reference, name):
+@click.option(
+    "--no-synthesize",
+    is_flag=True,
+    help="Do not synthesize a reference (TTS -> RVC) when the package has no reference audio.",
+)
+@click.option("--synth-text", default=None, help="Text to speak when synthesizing a reference.")
+def voices_import_rvc(path, index_path, reference, name, no_synthesize, synth_text):
     """Import RVC v1/v2 package -> MeanVC2 profile via reference audio."""
     click.echo(PERSON_NOTICE)
     click.echo("\nRVC Voice Import\n")
@@ -403,9 +414,16 @@ def voices_import_rvc(path, index_path, reference, name):
         click.echo(f"Sample rate      {info.sample_rate}")
     if info.pitch_guidance is not None:
         click.echo(f"Pitch guidance   {'yes' if info.pitch_guidance else 'no'}")
+    have_ref = bool(info.reference_audio or reference)
+    will_synth = not have_ref and bool(info.checkpoint) and not no_synthesize
     click.echo(
-        f"Reference audio  {'available' if info.reference_audio or reference else 'missing'}"
+        "Reference audio  "
+        + ("available" if have_ref else "missing (will synthesize: TTS -> RVC)" if will_synth else "missing")
     )
+    if will_synth:
+        from .rvc.synth import PICKLE_WARNING
+
+        click.echo(f"Note             {PICKLE_WARNING}")
     click.echo("\nConverting RVC voice -> MeanVC2 profile")
     click.echo("(reference-audio adaptation — not weight conversion)\n")
     try:
@@ -413,6 +431,8 @@ def voices_import_rvc(path, index_path, reference, name):
             Path(path),
             display_name=name,
             reference_override=Path(reference) if reference else None,
+            synthesize=False if no_synthesize else None,
+            synth_text=synth_text,
         )
     except Exception as e:  # noqa: BLE001
         raise click.ClickException(str(e)) from e

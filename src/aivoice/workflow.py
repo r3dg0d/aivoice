@@ -24,6 +24,7 @@ def install_from_ref(
     reference: Path | None = None,
     progress: bool = True,
     consent_person_ack: bool = False,
+    synthesize: bool | None = None,
 ) -> VoiceEntry:
     existing = cached_voice_for_search(model.provider, model.id)
     if existing and existing.status == "ready":
@@ -68,10 +69,11 @@ def install_from_ref(
         source_provider=model.provider,
         source_model_id=model.id,
         source_url=model.page_url or url,
+        synthesize=synthesize,
     )
     if result.voice is None:
         raise RuntimeError(result.message)
-    if result.engine != "meanvc2":
+    if result.engine != "meanvc2" or result.synthesized:
         print(result.message)
     return result.voice
 

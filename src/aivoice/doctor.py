@@ -51,6 +51,13 @@ def run_doctor(*, check_network: bool = True) -> list[Check]:
     checks.append(Check("pw-cli", bool(shutil.which("pw-cli")), shutil.which("pw-cli") or "missing"))
     checks.append(Check("FFmpeg", bool(shutil.which("ffmpeg")), shutil.which("ffmpeg") or "optional for audio prep"))
 
+    # Optional: synthesize a reference for RVC packages that ship no demo audio
+    from .rvc.synth import default_rvc_engines, default_tts_engines
+
+    for label, engines in (("Synth reference: TTS", default_tts_engines()), ("Synth reference: RVC", default_rvc_engines())):
+        found = [e.name for e in engines if e.unavailable_reason() is None]
+        checks.append(Check(label, bool(found), ", ".join(found) or "optional; none available (see README 'Synthesized references')"))
+
     # Voice library paths
     try:
         voices_dir().mkdir(parents=True, exist_ok=True)
