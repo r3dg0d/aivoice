@@ -243,3 +243,44 @@ def test_files_aivoice_generated_are_never_mistaken_for_a_recording(tmp_path):
     info = inspect_rvc_package(d)
     assert info.reference_audio == []
     assert not info.has_usable_reference
+
+
+def test_a_stub_wav_never_becomes_a_synthesized_meanvc2_voice(tmp_path, monkeypatch):
+    """A TTS command that emits only a short clip must not yield a ready MeanVC2 voice.
+
+    Real engines reject output under MIN_WAV_BYTES. The import then stays on the
+    incomplete metadata fallback instead of labelling a stub as synthesized.
+    """
+    script = tmp_path / "tiny_tts.py"
+    script.write_text(
+        "import sys, wave\n"
+        "out = sys.argv[1]\n"
+        "w = wave.open(out, 'wb')\n"
+        "w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000)\n"
+        "w.writeframes(b'\\x00\\x00' * 800)  # 0.05 s, under the usable-audio floor\n"
+        "w.close()\n",
+        encoding="utf-8",
+    )
+    info = _package(tmp_path)
+    rvc = FakeRvc()
+    tts = CommandTts(template=f"{sys.executable} {script} {{out}}")
+    with pytest.raises(SynthError, match="no usable audio"):
+        synthesize_reference(info, tmp_path / "out", tts_engines=[tts], rvc_engines=[rvc])
+    assert rvc.calls == []
+    out = tmp_path / "out"
+    assert not (out / "synthesized_reference.wav").exists()
+    assert not (out / "_tts_base.wav").exists()
+    assert not list(out.glob("*.txt"))
+
+    from aivoice.rvc import synth as synth_mod
+
+    monkeypatch.setattr(synth_mod, "default_tts_engines", lambda: [tts])
+    monkeypatch.setattr(synth_mod, "default_rvc_engines", lambda: [rvc])
+    result = adapt_rvc_to_meanvc2(Path(info.root), display_name="Stub Ref")
+    assert result.synthesized is False
+    assert result.engine == "rvc"
+    assert result.voice is not None and result.voice.status == "incomplete"
+    assert "no usable audio" in result.message
+    voice = load_voice("Stub Ref")
+    assert voice.extra.get("adaptation") == "rvc-fallback-incomplete"
+    assert voice.extra.get("reference_kind") != "synthesized"

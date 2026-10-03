@@ -487,7 +487,7 @@ def voices_optimize(name):
         f"Fine-tuning for {v.display_name!r} is not enabled by default.\n"
         "Zero-shot reference profiles are the fast path. "
         "Speaker-specific MeanVC2 fine-tuning requires substantial clean target speech, "
-        "upstream training scripts, and explicit opt-in — not implemented in 0.2.0."
+        "upstream training scripts, and explicit opt-in — not implemented."
     )
 
 
