@@ -14,9 +14,10 @@ import zipfile
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+from . import __version__
 from .paths import downloads_dir, ensure_dirs
 
-UA = "aivoice/0.2 (+https://github.com/r3dg0d/aivoice)"
+UA = f"aivoice/{__version__} (+https://github.com/r3dg0d/aivoice)"
 MAX_RETRIES = 3
 
 

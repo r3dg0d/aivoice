@@ -24,11 +24,12 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
+from .. import __version__
 from .base import ProviderCapabilities, SearchPage, VoiceModelRef
 
 BASE = "https://voice-models.com"
 FETCH = f"{BASE}/fetch_data.php"
-UA = "aivoice/0.2 (+https://github.com/r3dg0d/aivoice; respectful catalog client)"
+UA = f"aivoice/{__version__} (+https://github.com/r3dg0d/aivoice; respectful catalog client)"
 MIN_INTERVAL_S = 1.0
 
 _last_request = 0.0
