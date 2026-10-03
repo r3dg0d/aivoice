@@ -8,6 +8,7 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from . import __version__
 from .models import is_ready, list_models
 from .paths import cache_home, data_home, downloads_dir, vendor_dir, voices_dir
 from .providers import get_provider, list_providers
@@ -91,7 +92,7 @@ def run_doctor(*, check_network: bool = True) -> list[Check]:
                     req = urllib.request.Request(
                         "https://voice-models.com/",
                         method="HEAD",
-                        headers={"User-Agent": "aivoice/0.2 doctor"},
+                        headers={"User-Agent": f"aivoice/{__version__} doctor"},
                     )
                     with urllib.request.urlopen(req, timeout=10) as resp:
                         ok = 200 <= getattr(resp, "status", 200) < 400
