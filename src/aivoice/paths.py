@@ -50,6 +50,28 @@ def downloads_dir() -> Path:
     return cache_home() / "downloads"
 
 
+def tts_voices_dir() -> Path:
+    """Experimental-mode TTS voice profiles (local voice, local voice id, hosted id)."""
+    return data_home() / "tts_voices"
+
+
+def registry_dir() -> Path:
+    """aivoice's lightweight model registry; weights stay in the Hugging Face cache."""
+    return data_home() / "models"
+
+
+def benchmarks_dir() -> Path:
+    return cache_home() / "benchmarks"
+
+
+def runtime_dir() -> Path:
+    """Per-session state (engine pid/status, virtual mic module ids)."""
+    base = os.environ.get("XDG_RUNTIME_DIR")
+    if base:
+        return Path(base) / "aivoice"
+    return cache_home() / "run"
+
+
 def ensure_dirs() -> None:
     data_home().mkdir(parents=True, exist_ok=True)
     profiles_dir().mkdir(parents=True, exist_ok=True)
