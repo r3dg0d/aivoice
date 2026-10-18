@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.4.0 — 2026-10-18
+
+### Added — experimental real-time mode
+- `aivoice experimental …`: microphone → VAD → streaming ASR → transcript stabilizer → optional LLM →
+  expression compiler → Fish Drama 3 / S2-Pro / local TTS → PipeWire virtual mic, with per-utterance
+  latency timelines, speculative synthesis, barge-in policies, push-to-talk, live controls, presets,
+  remote-processing consent, and a benchmark suite (`experimental benchmark`, JSON + text reports).
+- ASR backends behind `ASRBackend`: Moonshine Voice tiny/small/medium (native streaming, CPU) and
+  NVIDIA Parakeet TDT 0.6B v3 (NeMo; chunked re-decoding adapter, labelled as such); automatic
+  selection from cached measurements keyed by hardware/runtime fingerprint.
+- Silero VAD run from its bundled ONNX file with onnxruntime (no torch); energy VAD fallback.
+- Fish backends: fish-speech `api_server` compatible client (local or consented remote), hosted Fish
+  Audio API client; streaming WAV decoding; local espeak-ng/Piper/command fallback that is never remote.
+- Voice profiles (`aivoice voice …`): local voice, local voice id (server reference), hosted Fish id;
+  authorization attestation required.
+- `SpeechIntelligenceEngine` (`aivoice llm …`): verbatim/cleanup/natural/expressive/character/custom/
+  hybrid modes over llama.cpp GGUF models, JSON output contract, timeout fallback, fact guard.
+- Hugging Face model manager (`aivoice models search|info|download|installed|known|load|verify|update|
+  remove|cache|cleanup|import|default`): commit-pinned resumable downloads with confirmation, disk and
+  quota checks, SHA-256 verification, gated-repo guidance, offline registry, safe cache removal.
+- Resource scheduler (VRAM/RAM budgets, LRU eviction, OOM recovery), `aivoice hardware`,
+  `aivoice experimental plan`, `aivoice credentials` (env / system keyring; never settings.json).
+- Virtual mic is now idempotent (reuses existing sink/source), tracks and cleans up only its own modules,
+  offers a loopback monitor, and refuses feedback-prone inputs; `pacat`/`parec` drivers target named devices.
+- Nix: `packages.aivoice-experimental`, a fuller dev shell, and an opt-in `nixosModules.virtual-mic`.
+- Docs under `docs/`.
+
+### Fixed
+- `models install meanvc2` failed with huggingface_hub ≥ 1.0 (`local_dir_use_symlinks` was removed upstream).
+- WAV reading/writing no longer hard-requires `soundfile` (stdlib fallback for PCM WAV).
+- `flake.nix` reported version 0.2.0.
+
 ## 0.3.0 — 2026-09-30
 
 ### Added

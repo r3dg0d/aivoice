@@ -1,6 +1,6 @@
-# STATUS — aivoice 0.3.0
+# STATUS — aivoice 0.4.0
 
-Honest limitations (as of 2026-10-02 PT).
+Honest limitations (as of 2026-10-18).
 
 ## What works
 
@@ -35,6 +35,35 @@ Honest limitations (as of 2026-10-02 PT).
 6. Upstream MeanVC2 LICENSE file gap still documented in NOTICE.
 7. MeanVC2 not installed on a fresh machine until `models install`.
 
+## Experimental real-time mode (0.4.0)
+
+### Implemented and tested in this repository
+- Engine: threaded capture → VAD → ASR → stabilizer → (LLM) → expression → TTS → player, bounded drop-oldest queues, per-utterance monotonic timelines, speculative synthesis, barge-in (queue/interrupt/duck), backlog cap, mute, push-to-talk, emergency stop, live status file, signal controls
+- Silero VAD from the pip package's ONNX via onnxruntime (no torch), energy VAD fallback, endpointer
+- Transcript stabilizer (no repeated or retracted speech in tests)
+- Hugging Face model manager (search/info/plan/download/verify/remove/update/import/cache/cleanup/offline) against fake Hub objects
+- Fish clients (fish-speech server, hosted API) against a protocol-faithful fake server: streaming WAV, references, consent, key redaction
+- Voice profiles with authorization attestation; expression compiler (drama3/s2/s1/none); LLM engine with JSON contract, timeout and fact guard
+- Virtual mic create/reuse/cleanup and real audio routing against a real PulseAudio daemon; espeak-ng fallback TTS end to end
+- 153 tests pass (151 in a minimal `.[dev]` install; the opt-in real-Pulse test and Silero are skipped there)
+
+### Integrated but not validated with real weights here
+The development container had no GPU and could not reach huggingface.co or download.moonshine.ai.
+- Moonshine tiny/small/medium (adapter tested against a fake of the moonshine-voice 0.1.5 API)
+- Parakeet TDT 0.6B v3 (fake NeMo model); streamed via chunked re-decoding, **not** native streaming
+- Drama 3 / S2-Pro through a real fish-speech server; hosted Fish API with a real key
+- llama.cpp rewriting with a real GGUF
+- No ASR/TTS model latency or WER has been measured yet: see docs/benchmarks.md for what has been
+
+### Known limits
+- **Drama 3 does not fit a 24 GB RTX 4090** (upstream: ≥ 48 GB FP8; INT4 build ~25.9 GB reported). Use S2-Pro locally, Drama 3 remote/hosted
+- Hosted Fish voice ids cannot be used by a local server (no official export API)
+- No GUI (the project has none); status is `experimental status --watch`
+- Hosted streaming uses HTTP response streaming, not the `/v1/tts/live` WebSocket
+- `flake.nix` is syntax-checked only; not built here
+- Speculative synthesis is disabled automatically while a model-backed LLM mode is active
+- Latency targets (Verbatim < 300 ms … Character < 1 s) are design targets, not measurements
+
 ## Privacy
 
-Search queries go to the selected provider. Microphone audio, converted speech, and reference clips are **not** uploaded by aivoice. Synthesizing a reference loads the local RVC `.pth` (a pickle) and does not upload it.
+Search queries go to the selected provider. Microphone audio, converted speech, and reference clips are **not** uploaded by aivoice. Experimental mode sends recognised text (and local voice reference audio) only to a remote TTS you explicitly allowed (`aivoice experimental remote allow`). Synthesizing a reference loads the local RVC `.pth` (a pickle) and does not upload it.
