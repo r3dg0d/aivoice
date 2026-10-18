@@ -146,13 +146,14 @@ def install_model(name: str, *, yes: bool = False) -> str:
     revision = meta.get("hf_revision")
     checksums: dict[str, str] = {}
     try:
-        from huggingface_hub import hf_hub_download, snapshot_download  # type: ignore
+        from huggingface_hub import snapshot_download  # type: ignore
 
+        # local_dir already materialises real files; the old local_dir_use_symlinks
+        # argument was removed in huggingface_hub 1.0 and made this call raise TypeError.
         local = snapshot_download(
             repo_id=MEANVC2_HF,
             revision=revision,
             local_dir=str(target / "hf"),
-            local_dir_use_symlinks=False,
         )
         messages.append(f"HF snapshot → {local}")
         for f in (target / "hf").rglob("*"):
