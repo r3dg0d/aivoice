@@ -77,7 +77,6 @@ def test_server_streaming_synthesis_and_model_detection():
         assert ok and be.capabilities().dialect == "drama3" and not be.capabilities().remote
         t0 = time.perf_counter()
         chunks = list(be.synthesize("one two three four five six"))
-        first_gap = None
         assert len(chunks) > 5, "audio must arrive incrementally, not as one blob"
         assert all(c.sample_rate == 44100 for c in chunks)
         total = sum(c.pcm.size for c in chunks)

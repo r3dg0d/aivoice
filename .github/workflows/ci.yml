@@ -26,5 +26,10 @@ jobs:
           aivoice devices
           aivoice models list
           aivoice profiles list
+          aivoice models known
+          aivoice hardware
+          aivoice experimental status
+          aivoice experimental plan --mock-4090
+          aivoice experimental preset list
         env:
           AIVOICE_MOCK_DEVICES: "1"

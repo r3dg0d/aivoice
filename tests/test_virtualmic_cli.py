@@ -76,7 +76,7 @@ def test_feedback_risk():
 @pytest.mark.skipif(os.environ.get("AIVOICE_TEST_REAL_PULSE") != "1" or not shutil.which("pactl"),
                     reason="set AIVOICE_TEST_REAL_PULSE=1 with a running PipeWire/Pulse server")
 def test_real_pulse_virtual_mic():
-    a = vm.ensure_virtual_mic("aivoicetest")
+    vm.ensure_virtual_mic("aivoicetest")
     try:
         assert vm.ensure_virtual_mic("aivoicetest").reused
         assert vm.status("aivoicetest")["source_present"]
