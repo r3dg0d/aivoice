@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aivoice"
-version = "0.3.0"
-description = "Local real-time AI voice changer wrapping MeanVC2 (disclosed synthetic media)"
+version = "0.4.0"
+description = "Local real-time AI voice changer: MeanVC2 conversion plus an experimental ASR -> LLM -> Fish Drama 3 mode (disclosed synthetic media)"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [{ name = "r3dg0d" }]
-keywords = ["voice-conversion", "meanvc2", "realtime", "pipewire", "synthetic-media", "cli"]
+keywords = ["voice-conversion", "meanvc2", "realtime", "pipewire", "synthetic-media", "cli", "asr", "tts", "fish-audio", "moonshine", "parakeet"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",
@@ -30,6 +30,17 @@ audio = ["soundfile>=0.12", "sounddevice>=0.4"]
 hf = ["huggingface_hub>=0.23"]
 rvc = ["rvc-python>=0.1.5"]  # optional: enables TTS -> RVC reference synthesis (pulls torch)
 cuda = []  # torch/CUDA installed by user for MeanVC2; not forced
+# --- experimental real-time mode (ASR -> LLM -> TTS) ---
+# Silero VAD: `pip install --no-deps silero-vad` gives the bundled ONNX file without torch.
+realtime = ["sounddevice>=0.4", "soundfile>=0.12", "onnxruntime>=1.16"]
+moonshine = ["moonshine-voice>=0.1.5"]  # CPU streaming ASR
+parakeet = ["nemo_toolkit[asr]>=2.4"]  # GPU ASR; install a CUDA torch build yourself first
+llm = ["llama-cpp-python>=0.3"]  # GGUF rewriting on CPU (or CUDA build)
+fish = ["ormsgpack>=1.5"]  # msgpack bodies for fish-speech / Fish API (JSON fallback without it)
+keyring = ["keyring>=24"]  # Fish Audio API key in Secret Service / KWallet
+experimental = [
+  "aivoice[realtime,moonshine,hf,fish,keyring]",
+]
 
 [project.scripts]
 aivoice = "aivoice.cli:main"
@@ -47,3 +58,4 @@ markers = [
   "audio: requires PipeWire/sounddevice (skipped by default without hardware)",
   "gpu: requires CUDA and MeanVC2 weights",
 ]
+filterwarnings = ["ignore::DeprecationWarning:tqdm.*"]

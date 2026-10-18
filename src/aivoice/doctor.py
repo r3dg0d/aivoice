@@ -6,12 +6,11 @@ import json
 import shutil
 import urllib.request
 from dataclasses import asdict, dataclass
-from typing import Any
 
 from . import __version__
-from .models import is_ready, list_models
+from .models import is_ready
 from .paths import cache_home, data_home, downloads_dir, vendor_dir, voices_dir
-from .providers import get_provider, list_providers
+from .providers import list_providers
 
 
 @dataclass
@@ -58,6 +57,23 @@ def run_doctor(*, check_network: bool = True) -> list[Check]:
     for label, engines in (("Synth reference: TTS", default_tts_engines()), ("Synth reference: RVC", default_rvc_engines())):
         found = [e.name for e in engines if e.unavailable_reason() is None]
         checks.append(Check(label, bool(found), ", ".join(found) or "optional; none available (see README 'Synthesized references')"))
+
+    # Optional: experimental real-time mode runtimes (never required for MeanVC2)
+    from .hardware import has_runtime
+    from .vad import silero_onnx_path
+
+    for label, mod, hint in (
+        ("Exp: Moonshine ASR", "moonshine_voice", "pip install 'aivoice[moonshine]'"),
+        ("Exp: Parakeet (NeMo)", "nemo", "pip install 'nemo_toolkit[asr]' + CUDA torch"),
+        ("Exp: llama.cpp LLM", "llama_cpp", "pip install 'aivoice[llm]'"),
+        ("Exp: HF model manager", "huggingface_hub", "pip install 'aivoice[hf]'"),
+        ("Exp: audio I/O", "sounddevice", "pip install 'aivoice[realtime]' (or use pacat/parec)"),
+    ):
+        ok = has_runtime(mod)
+        checks.append(Check(label, ok, "installed" if ok else f"optional; {hint}"))
+    silero = silero_onnx_path()
+    checks.append(Check("Exp: Silero VAD", bool(silero) and has_runtime("onnxruntime"),
+                        str(silero) if silero else "optional; pip install --no-deps silero-vad onnxruntime"))
 
     # Voice library paths
     try:
