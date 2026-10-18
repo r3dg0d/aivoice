@@ -606,7 +606,7 @@ def benchmark_cmd(frames, mode, consent_ack):
 
 @main.group("models")
 def models_group():
-    """List / install MeanVC2 base models (not voice profiles)."""
+    """MeanVC2 base models (list/install) and the Hugging Face model manager (search/download/...)."""
 
 
 @models_group.command("list")
@@ -627,6 +627,9 @@ def models_list(as_json: bool):
         click.echo(f"  weights: {r.meta.get('weights_license')}")
         if r.meta.get("notes"):
             click.echo(f"  notes: {r.meta['notes']}")
+
+
+    click.echo("\nExperimental-mode models (ASR/TTS/LLM via Hugging Face): `aivoice models known`, `aivoice models installed`")
 
 
 @models_group.command("install")
@@ -673,6 +676,11 @@ def _resolve_reference(
             raise click.ClickException(str(e)) from e
         return Path(p.reference)
     raise click.ClickException("Provide --reference, --voice, or --profile")
+
+
+from .cli_experimental import register as _register_experimental  # noqa: E402
+
+_register_experimental(main, models_group)
 
 
 if __name__ == "__main__":
