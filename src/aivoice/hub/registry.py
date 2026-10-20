@@ -59,6 +59,11 @@ RUNTIMES: dict[str, RuntimeSpec] = {
         "Drama 3 / S2-Pro are served by a separate process; aivoice never loads them in-process",
     ),
     "transformers": RuntimeSpec("transformers", "transformers", "pip install transformers"),
+    # Research TTS engines run in their own venv through aivoice's worker (engines/worker_main.py);
+    # module=None because the package lives in that venv, not necessarily in aivoice's.
+    "voxcpm": RuntimeSpec("voxcpm", None, "pip install voxcpm (own venv; set AIVOICE_VOXCPM2_PYTHON)", "OpenBMB VoxCPM2"),
+    "x-voice": RuntimeSpec("x-voice", None, "pip install x-voice (own venv; set AIVOICE_XVOICE_PYTHON)", "X-Voice CLI"),
+    "voicestar": RuntimeSpec("voicestar", None, "pip install voicestar (own venv; set AIVOICE_VOICESTAR_PYTHON)", "VoiceStar"),
 }
 
 # Which aivoice adapter can drive a runtime for a category. Absent = inspect only.
@@ -68,6 +73,9 @@ ADAPTERS: dict[tuple[str, str], str] = {
     ("llama.cpp", "llm"): "llama-cpp",
     ("fish-speech-server", "tts"): "fish-server",
     ("onnxruntime", "vad"): "silero-onnx",
+    ("voxcpm", "tts"): "voxcpm2",
+    ("x-voice", "tts"): "xvoice",
+    ("voicestar", "tts"): "voicestar",
 }
 
 
@@ -210,6 +218,66 @@ KNOWN_MODELS: list[KnownModel] = [
             "memory": ESTIMATE,
         },
         notes="The realistic local Fish model on a 24 GB card. Uses [bracket] tags; no Drama 3 paired tags.",
+    ),
+    KnownModel(
+        key="voxcpm2",
+        category="tts",
+        runtime="voxcpm",
+        repo_id="openbmb/VoxCPM2",
+        params="2B",
+        license="Apache-2.0 (code and weights, per the official README)",
+        gated=False,
+        est_vram_mib=8 * 1024,
+        est_ram_mib=None,
+        facts={
+            "repo_id, 2B, 30 languages, 48 kHz output, Apache-2.0": "official voxcpm 2.0.3 README",
+            "~8 GB VRAM, RTF ~0.3 on RTX 4090": "official README model table / performance section (not measured by aivoice)",
+            "reference_wav_path cloning needs no transcript": "voxcpm 2.0.3 source (core.VoxCPM._generate)",
+            "style via '(description)text' prefix": "official README (Voice Design / Controllable Cloning)",
+            "streaming via generate_streaming": "voxcpm 2.0.3 source",
+            "LoRA fine-tuning": "voxcpm 2.0.3 source (load_lora, training/)",
+        },
+        notes="Primary new zero-shot engine. Runs in its own venv through aivoice's worker.",
+        aliases=("vox-cpm2", "voxcpm"),
+    ),
+    KnownModel(
+        key="xvoice",
+        category="tts",
+        runtime="x-voice",
+        repo_id="XRXRX/X-Voice",
+        params="0.4B",
+        license="code MIT (PyPI x-voice 0.1.1); weights: check the model card",
+        est_vram_mib=3 * 1024,
+        est_ram_mib=None,
+        allow_patterns=["*.safetensors", "*.txt", "*.yaml", "*.json", "*.md"],
+        facts={
+            "repo_id XRXRX/X-Voice": "x-voice 0.1.1 infer/README.md",
+            "Stage2 drop-text (transcript-free) cloning with SRP duration": "x-voice 0.1.1 infer/README.md",
+            "24 kHz output": "x-voice 0.1.1 infer/utils_infer.py target_sample_rate",
+            "0.4B params, 30 languages, IPA": "arXiv 2605.05611 abstract",
+            "memory": ESTIMATE,
+        },
+        notes="Invoked through its own CLI (model reloads per call: offline use, not real time).",
+        aliases=("x-voice",),
+    ),
+    KnownModel(
+        key="voicestar",
+        category="tts",
+        runtime="voicestar",
+        repo_id="pyp1/VoiceStar",
+        params="840M",
+        license="code MIT, weights CC-BY-4.0 (LICENSE-MODEL in voicestar 0.1.0)",
+        est_vram_mib=5 * 1024,
+        est_ram_mib=None,
+        allow_patterns=["VoiceStar_840M_30s.pth", "*.md"],
+        facts={
+            "repo pyp1/VoiceStar, VoiceStar_840M_30s/40s.pth, 16 kHz": "voicestar 0.1.0 source",
+            "loaded with torch.load(weights_only=True)": "voicestar 0.1.0 source",
+            "needs reference transcript (else downloads Whisper)": "voicestar 0.1.0 source",
+            "default duration estimate equals the reference length": "voicestar 0.1.0 utils.estimate_duration",
+            "memory": ESTIMATE,
+        },
+        notes="Native duration control; aivoice supplies a silence-aware duration plan.",
     ),
     # --- LLM ---------------------------------------------------------------
     KnownModel(

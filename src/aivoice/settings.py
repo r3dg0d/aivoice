@@ -75,7 +75,10 @@ DEFAULTS: dict[str, Any] = {
         "temperature": 0.7,
         "top_p": 0.7,
         "timeout_s": 30,
+        "clone_voice": None,  # v2 clone profile used with backend "engine:<name>"
+        "style": None,  # natural-language style for engines that support it
     },
+    "engines": {},  # per-engine: {"voxcpm2": {"python": "/path/venv/bin/python", "model_path": ...}}
     "voice": {"active": None},
     "audio": {
         "input_device": None,
