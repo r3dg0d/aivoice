@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=AI Voice
+GenericName=AI Voice Changer
+Comment=aivoice virtual mic, voice library and doctor
+Exec=aivoice-widget
+Icon=galaxy-aivoice
+Terminal=false
+Categories=AudioVideo;Audio;
+Keywords=aivoice;voice;mic;rvc;meanvc;quickshell;galaxy;

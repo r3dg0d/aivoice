@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export PATH="$HOME/.nix-profile/bin:$HOME/.config/quickshell/galaxy/runtime/bin:$PATH"
+if quickshell ipc -c aivoice call aivoice open 2>/dev/null; then exit 0; fi
+cd "$HOME"; export USER="${USER:-$(id -un)}"
+exec quickshell -c aivoice --no-duplicate --daemonize

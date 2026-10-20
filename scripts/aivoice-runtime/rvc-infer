@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# aivoice AIVOICE_RVC_CMD bridge: rvc-infer INPUT MODEL INDEX OUTPUT VERSION  (runs rvc-python in its own py3.10 venv)
+R="$HOME/.local/share/aivoice/rvc-venv"
+export LD_LIBRARY_PATH="$(cat "$HOME/.local/share/aivoice/ldpath")${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec "$R/bin/python" - "$@" <<'PY'
+import sys, torch
+from rvc_python.infer import RVCInference
+i, m, idx, o, v = (sys.argv[1:] + [""] * 5)[:5]
+r = RVCInference(device="cuda:0" if torch.cuda.is_available() else "cpu:0")
+r.load_model(m, version=v or "v2", index_path=idx)
+r.infer_file(i, o)
+PY
