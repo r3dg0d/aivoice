@@ -1,0 +1,15 @@
+{
+  "id": "H",
+  "title": "Full research-fusion pipeline",
+  "change": "Prepared reference + duration plan + long-form joins + engine routing vs each engine raw.",
+  "rationale": "",
+  "implemented": "",
+  "baseline": "",
+  "status": "not run",
+  "metrics": {},
+  "decision": "NOT RUN: needs at least one cloning engine running",
+  "regression": "",
+  "limitations": [],
+  "data": "",
+  "seconds": 0.0
+}

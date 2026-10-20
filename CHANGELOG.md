@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.5.0 — 2026-10-20
+
+### Added — zero-shot cloning and research fusion
+- **Engine layer** (`aivoice.engines`):
+  - `TTSEngine` / `StreamingTTSEngine` / `VoiceConversionEngine` protocols with `EngineCapabilities`.
+    Unsupported options raise `UnsupportedOption` (`--allow-unsupported` drops them with a warning).
+  - New engines: VoxCPM2 (voxcpm 2.0.3), VoiceStar (voicestar 0.1.0) and X-Voice Stage 2 (x-voice 0.1.1 CLI).
+    Each runs in its own interpreter through an isolated JSON-lines worker.
+  - Adapters for MeanVC2, the Fish server/API and espeak-ng.
+- **Clone CLI:**
+  - `aivoice clone create|list|inspect|preview|synthesize|compare|delete|migrate|attest|adapt`
+  - `aivoice engines list|info|capabilities|benchmark`
+  - `aivoice research list|citations|experiments`
+  - `aivoice benchmark research`
+- **Speaker profiles v2:**
+  - Stored under `~/.local/share/aivoice/speakers/`, with analysis, a prepared reference, consent and
+    provenance.
+  - `clone migrate` copies v1 profiles in and never modifies the originals.
+- **Research modules** (`aivoice.research`):
+  - Reference analysis and identity-guarded preparation, with auto-denoise.
+  - A GE2E speaker encoder that reproduces Resemblyzer exactly.
+  - Silence-aware duration planning (Cross-Lingual F5-TTS 2, applied to VoiceStar and X-Voice).
+  - Text normalization, language detection, X-Voice code-switch tags and IPA.
+  - Long-form segmentation and joins.
+  - Experimental vector-field fusion with strict compatibility checks.
+  - Adaptation dataset validation and VoxCPM LoRA manifests (no training is started).
+  - A paper catalog with statuses and BibTeX.
+- **Fusion pipeline and router:**
+  - The router filters engines by capability, availability, VRAM and remote consent, then ranks them by
+    this machine's measurements, or by a fixed order.
+  - Outputs are labelled as synthetic (RIFF `ICMT`) and get a JSON sidecar.
+- **Audio** (`aivoice.audio.loudness`, `aivoice.audio.enhancement`):
+  - BS.1770-4 loudness.
+  - A robust click detector and repair, crossfade joins, loudness matching, and `--enhance
+    off|auto|high-fidelity` with an identity guard.
+- **Evaluation:**
+  - Speaker similarity, WER/CER, and acoustic metrics.
+  - A research benchmark (JSON + CSV, `consent.json` gating), and rights-free synthetic espeak-ng speakers.
+  - Ablation experiments A–H with bootstrap CIs and retain/reject decisions. C, F and G were measured;
+    the rest are reported as not run, with the reason.
+- **Real-time Path B:** `experimental tts use engine:<name> --voice <profile>` puts any engine behind the
+  real-time TTS interface.
+- **Showcase:**
+  - Rights-free audio in `examples/audio/`, plus the generate and validate scripts.
+  - An A/B player at `docs/demo/index.html`.
+- **Docs:** architecture, zero-shot cloning, model backends, speaker conditioning, research fusion,
+  multilingual, style control, audio showcase, `research/` (review, methodology, citations,
+  experiments).
+- **Packaging:** a `research` extra (torch, librosa, resemblyzer).
+- **CI:** lint, build and smoke steps.
+
+### Changed
+- `aivoice benchmark` is now a group. Running it with no subcommand still does the previous buffer
+  benchmark, unchanged.
+
 ## 0.4.0 — 2026-10-18
 
 ### Added — experimental real-time mode

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "synth-a",
+    "voice": "synth-a",
+    "description": "espeak-ng en-us+m3, 165 wpm, pitch 45: a synthetic formant voice",
+    "real_person": false,
+    "synthesis_authorized": true,
+    "publication_authorized": true,
+    "license": "Generated audio; espeak-ng output is not a recording of anyone"
+  },
+  {
+    "id": "synth-b",
+    "voice": "synth-b",
+    "description": "espeak-ng en+f4, 175 wpm, pitch 60: a synthetic formant voice",
+    "real_person": false,
+    "synthesis_authorized": true,
+    "publication_authorized": true,
+    "license": "Generated audio; espeak-ng output is not a recording of anyone"
+  }
+]

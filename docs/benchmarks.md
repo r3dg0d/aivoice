@@ -52,3 +52,38 @@ S2-Pro speed; those must be measured on the target RTX 4090 machine with
 * Drama 3 / S2-Pro time to first audio (no GPU; Drama 3 does not fit a 4090)
 * llama.cpp rewrite latency (no prebuilt llama-cpp-python wheel and no Hub access here)
 * Extended sessions (hours) and VRAM over time
+
+## Zero-shot cloning benchmark (0.5)
+
+```bash
+aivoice benchmark research --synthetic --consent-ack            # rights-free espeak-ng speakers
+aivoice benchmark research --dataset my_set/ --engines voxcpm2,voicestar --seeds 0,1,2
+aivoice research experiments --run C,F,G --output docs/research/experiments
+```
+
+The benchmark runs every engine on the same references, texts and seeds. It reports, per engine:
+
+- GE2E similarity to the reference, and WER/CER when an ASR backend is installed
+- first-audio time, RTF and wall time
+- peak RSS and peak CUDA memory
+- the acoustic metrics: LUFS, peak and clicks
+
+Results are written as `results.json` and `results.csv`, and the router uses them for automatic
+selection. A user dataset needs a `consent.json` that states the speakers agreed.
+
+### Measured here (2026-10-20, same container: 4 vCPU Xeon, 15 GiB RAM, no GPU)
+
+No neural cloning engine could run here, because there is no Hugging Face access and no GPU.
+`benchmark research --synthetic` therefore reports every cloning engine as unavailable. The timings
+below are for aivoice's own processing stages, measured on a 9.4 s, 22.05 kHz reference:
+
+| Stage | Time | When it runs |
+|---|---|---|
+| GE2E embedding (CPU torch; exact Resemblyzer reproduction) | 226 ms | Evaluation; profile creation |
+| Reference analysis (`clone create`) | 0.60 s | Once per profile |
+| Reference preparation, including identity-guard checks | 3.1 s | Once per profile |
+| Silence-aware duration plan | 159 ms | Per utterance, for engines with duration control |
+| `--enhance auto` (click repair, loudness, identity check) | 434 ms | Per utterance, opt-in |
+
+The ablation results (C, F, G) are in [research/experiments](research/experiments/). VoxCPM2's own
+documentation reports RTF ≈ 0.3 and about 8 GB of VRAM on an RTX 4090. aivoice has not verified that.

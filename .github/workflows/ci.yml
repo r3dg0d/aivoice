@@ -7,6 +7,30 @@ on:
     branches: [main, master]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install ruff
+        run: pip install "ruff>=0.6"
+      - name: Lint (errors and undefined names)
+        run: ruff check --select F,E9 src tests examples/scripts
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install bandit
+        run: pip install "bandit>=1.7"
+      - name: Static security scan (high severity, high confidence)
+        run: bandit -q -r src -lll -iii
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -14,6 +38,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: System packages
+        run: sudo apt-get update && sudo apt-get install -y espeak-ng
       - name: Install
         run: pip install -e ".[dev]"
       - name: Tests
@@ -31,5 +57,27 @@ jobs:
           aivoice experimental status
           aivoice experimental plan --mock-4090
           aivoice experimental preset list
+          aivoice engines capabilities
+          aivoice engines list
+          aivoice research list
+          aivoice research citations > /dev/null
+          aivoice clone list
+          aivoice benchmark --help
         env:
           AIVOICE_MOCK_DEVICES: "1"
+      - name: Showcase integrity
+        run: python examples/scripts/validate_audio_demos.py
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build sdist and wheel
+        run: pip install build && python -m build
+      - name: Install the wheel and import it
+        run: |
+          pip install dist/*.whl
+          python -c "import aivoice, aivoice.engines.registry, aivoice.research.catalog; print(aivoice.__version__)"

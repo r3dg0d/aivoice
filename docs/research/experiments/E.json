@@ -1,0 +1,15 @@
+{
+  "id": "E",
+  "title": "Prosody/style separation",
+  "change": "VoxCPM2 with and without a '(style)' instruction: similarity must not drop while style metrics (F0 range, rate) move.",
+  "rationale": "",
+  "implemented": "",
+  "baseline": "",
+  "status": "not run",
+  "metrics": {},
+  "decision": "NOT RUN: VoxCPM2 weights unavailable here",
+  "regression": "",
+  "limitations": [],
+  "data": "",
+  "seconds": 0.0
+}

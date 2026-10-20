@@ -1,4 +1,3 @@
-import os
 
 from aivoice.devices import detect_audio_stack, format_devices, list_devices
 

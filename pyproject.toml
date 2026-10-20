@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aivoice"
-version = "0.4.0"
-description = "Local real-time AI voice changer: MeanVC2 conversion plus an experimental ASR -> LLM -> Fish Drama 3 mode (disclosed synthetic media)"
+version = "0.5.0"
+description = "Local AI voice toolkit: MeanVC2 real-time conversion, zero-shot cloning (VoxCPM2, X-Voice, VoiceStar) and an experimental ASR -> LLM -> TTS mode (disclosed synthetic media)"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [{ name = "r3dg0d" }]
-keywords = ["voice-conversion", "meanvc2", "realtime", "pipewire", "synthetic-media", "cli", "asr", "tts", "fish-audio", "moonshine", "parakeet"]
+keywords = ["voice-conversion", "meanvc2", "realtime", "pipewire", "synthetic-media", "cli", "asr", "tts", "fish-audio", "moonshine", "parakeet", "voice-cloning", "zero-shot-tts", "voxcpm", "voicestar"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",
@@ -38,6 +38,11 @@ parakeet = ["nemo_toolkit[asr]>=2.4"]  # GPU ASR; install a CUDA torch build you
 llm = ["llama-cpp-python>=0.3"]  # GGUF rewriting on CPU (or CUDA build)
 fish = ["ormsgpack>=1.5"]  # msgpack bodies for fish-speech / Fish API (JSON fallback without it)
 keyring = ["keyring>=24"]  # Fish Audio API key in Secret Service / KWallet
+# --- zero-shot cloning (0.5) ---
+# Evaluation and reference analysis: GE2E speaker similarity (Resemblyzer's weights, loaded weights_only).
+research = ["torch>=2.1", "librosa>=0.10", "resemblyzer>=0.1.4", "soundfile>=0.12"]
+# VoxCPM2 / VoiceStar / X-Voice pin conflicting torch/transformers versions: install each in its own
+# venv (`pip install voxcpm==2.0.3` etc.) and point aivoice at it (docs/model-backends.md).
 experimental = [
   "aivoice[realtime,moonshine,hf,fish,keyring]",
 ]
@@ -49,7 +54,7 @@ aivoice = "aivoice.cli:main"
 packages = ["src/aivoice"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/aivoice", "tests", "README.md", "LICENSE", "NOTICE", "CHANGELOG.md", "STATUS.md"]
+include = ["src/aivoice", "tests", "docs", "examples/scripts", "README.md", "LICENSE", "NOTICE", "CHANGELOG.md", "STATUS.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,15 @@
+{
+  "id": "B",
+  "title": "Baseline B: Fish S2-Pro / Drama 3 synthesis",
+  "change": "Same targets and texts through a fish-speech server.",
+  "rationale": "",
+  "implemented": "",
+  "baseline": "",
+  "status": "not run",
+  "metrics": {},
+  "decision": "NOT RUN: no fish-speech server or GPU in this environment",
+  "regression": "",
+  "limitations": [],
+  "data": "",
+  "seconds": 0.0
+}

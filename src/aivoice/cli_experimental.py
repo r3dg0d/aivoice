@@ -474,11 +474,18 @@ def exp_tts():
 
 
 @exp_tts.command("use")
-@click.argument("backend", type=click.Choice(["auto", "fish-server", "fish-api", "local", "espeak", "piper", "command"]))
+@click.argument("backend")
 @click.option("--url", default=None, help="fish-speech server URL (fish-server)")
 @click.option("--model", default=None, help="drama-3 | s2-pro (server: tag dialect; api: model header)")
-def exp_tts_use(backend, url, model):
+@click.option("--voice", "clone_voice", default=None, help="Clone profile for engine:<name> backends")
+def exp_tts_use(backend, url, model, clone_voice):
+    """BACKEND: auto | fish-server | fish-api | local | espeak | piper | command | engine:<voxcpm2|xvoice|voicestar|...>"""
+    allowed = ("auto", "fish-server", "fish-api", "local", "espeak", "piper", "command")
+    if backend not in allowed and not backend.startswith("engine:"):
+        raise click.ClickException(f"unknown backend {backend!r}; choose from {', '.join(allowed)} or engine:<name>")
     vals: dict[str, Any] = {"backend": backend}
+    if clone_voice:
+        vals["clone_voice"] = clone_voice
     if url:
         vals["server_url"] = url
     if model:

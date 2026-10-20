@@ -6,7 +6,7 @@ from typing import Any, Iterator
 
 from .base import AudioChunk, RemoteNotAllowed, TTSBackend, TTSCapabilities, TTSError
 
-TTS_BACKENDS = ("auto", "fish-server", "fish-api", "local", "espeak", "piper", "command")
+TTS_BACKENDS = ("auto", "fish-server", "fish-api", "local", "espeak", "piper", "command", "engine:<name>")
 
 
 class FallbackTTS(TTSBackend):
@@ -52,6 +52,22 @@ def create_tts(cfg: dict[str, Any] | None = None) -> TTSBackend:
 
     cfg = cfg or st.load()["tts"]
     name = cfg.get("backend", "auto")
+    if name.startswith("engine:"):
+        # Any aivoice engine with TTS (VoxCPM2 streams; others yield whole utterances).
+        from ..engines.base import SynthesisOptions
+        from ..engines.realtime import EngineTTSBackend
+        from ..engines.registry import get_engine
+
+        eng = get_engine(name.split(":", 1)[1])
+        speaker = None
+        if cfg.get("clone_voice"):
+            from ..speakers import load_profile
+
+            prof = load_profile(cfg["clone_voice"])
+            if not prof.consent_recorded:
+                raise TTSError(f"clone profile {prof.voice_name!r} has no consent attestation")
+            speaker = prof.speaker_ref()
+        return EngineTTSBackend(eng, speaker, SynthesisOptions(style_prompt=cfg.get("style") or None))
     fallback: TTSBackend | None = None
     if cfg.get("fallback", "local") == "local" and name not in ("local", "espeak", "piper", "command"):
         try:
