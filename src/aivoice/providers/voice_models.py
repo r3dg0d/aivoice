@@ -199,7 +199,9 @@ class VoiceModelsProvider:
             html = resp.read().decode("utf-8", errors="replace")
         title_m = re.search(r"<title>([^<]+)", html, flags=re.I)
         name = htmlmod.unescape(title_m.group(1)).strip() if title_m else model_id
-        name = re.sub(r"\s*[|\-].*$", "", name).strip() or model_id
+        # strip only the site suffix; hyphens inside names ("E-Girl") must survive
+        name = re.sub(r"\s+[|\u2013\u2014-]\s+voice[- ]models.*$", "", name, flags=re.I)
+        name = re.sub(r"\s*AI Voice Model\s*$", "", name, flags=re.I).strip() or model_id
         hrefs = re.findall(r'href="(https?://[^"]+)"', html)
         download_url = None
         for h in hrefs:

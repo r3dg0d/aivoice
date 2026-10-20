@@ -200,6 +200,8 @@ def file_cmd(input_wav, reference, profile, voice, output, mode, device, backend
 @click.option("--device", default="cuda")
 @click.option("--consent-ack", is_flag=True)
 @click.option("--setup-only", is_flag=True, help="Only create null sink / remap source")
+@click.option("--engine", "rt_engine", type=click.Choice(["rvc", "meanvc2"]), default=None,
+              help="Realtime engine (default: the voice's saved choice; RVC v2 when it has a .pth)")
 def virtualmic_cmd(
     reference,
     profile,
@@ -212,6 +214,7 @@ def virtualmic_cmd(
     device,
     consent_ack,
     setup_only,
+    rt_engine,
 ):
     """Virtual mic + live conversion. Supports --search / --voice / interactive pick."""
     require_consent(ack=consent_ack)
@@ -267,7 +270,9 @@ def virtualmic_cmd(
         try:
             ve = load_voice(voice)
             voice_label = ve.display_name
-            engine = "MeanVC2" if ve.engine == "meanvc2" else ve.engine.upper()
+            from .pipeline import voice_rt_settings
+
+            engine = "RVC v2" if (rt_engine or voice_rt_settings(ve)["engine"]) == "rvc" else "MeanVC2"
         except FileNotFoundError:
             pass
 
@@ -284,7 +289,22 @@ def virtualmic_cmd(
         click.echo("Ready (setup-only)")
         return
     try:
-        code = run_live_subprocess(ref, mode=mode, device=device)
+        from .pipeline import run_live_rvc, voice_rt_settings
+
+        ve_rt = None
+        if voice:
+            try:
+                ve_rt = load_voice(voice)
+            except FileNotFoundError:
+                ve_rt = None
+        rt = voice_rt_settings(ve_rt) if ve_rt else {"engine": "meanvc2"}
+        use = (rt_engine or rt["engine"]).lower()
+        if use == "rvc" and ve_rt is not None:
+            click.echo(f"Realtime  RVC v2  pitch={rt['pitch']:+g} index_rate={rt['index_rate']}")
+            code = run_live_rvc(ve_rt, mode=mode, device=device, settings=rt)
+        else:
+            click.echo("Realtime  MeanVC2")
+            code = run_live_subprocess(ref, mode=mode, device=device)
     except Exception as e:  # noqa: BLE001
         raise click.ClickException(str(e)) from e
     if code != 0:
@@ -371,6 +391,71 @@ def voices_verify(name):
         for i in issues:
             click.echo(f"issue: {i}")
         raise click.ClickException("verify failed")
+
+
+@voices_group.command("resynth")
+@click.argument("name")
+@click.option("--synth-text", default=None, help="Text to speak (default: Harvard sentences).")
+def voices_resynth(name, synth_text):
+    """Regenerate a voice's reference.wav (TTS -> its RVC model) with the current engines."""
+    from .audio_prep import prepare_reference, score_reference
+    from .rvc.detect import inspect_path
+    from .rvc.synth import SynthError, synthesize_reference
+    from .voices import _sha256, _write, load_voice
+
+    try:
+        v = load_voice(name)
+    except FileNotFoundError as e:
+        raise click.ClickException(str(e)) from e
+    rvc_meta = (v.extra or {}).get("rvc") or {}
+    root = rvc_meta.get("root")
+    if not root or not Path(root).exists():
+        raise click.ClickException("voice has no RVC package on disk to synthesize from")
+    info = inspect_path(Path(root))
+    try:
+        synth = synthesize_reference(info, v.dir() / ".synth", text=synth_text)
+    except SynthError as e:
+        raise click.ClickException(str(e)) from e
+    ref = v.dir() / "reference.wav"
+    prep = prepare_reference(synth.path, ref)
+    v.checksum_reference = _sha256(ref)
+    v.extra = {
+        **(v.extra or {}),
+        "reference_kind": "synthesized",
+        "synthesis": {"tts": synth.tts_engine, "rvc": synth.rvc_engine, "text": synth.text},
+        "prep_notes": prep.notes,
+        "quality_notes": score_reference(ref),
+        "duration_s": prep.duration_s,
+    }
+    _write(v)
+    click.echo(f"{v.display_name}: reference regenerated ({synth.tts_engine} -> {synth.rvc_engine})")
+
+
+@voices_group.command("rt")
+@click.argument("name")
+@click.option("--engine", type=click.Choice(["rvc", "meanvc2"]), default=None)
+@click.option("--pitch", type=float, default=None, help="Transpose in semitones (RVC)")
+@click.option("--index-rate", type=float, default=None, help="0..1 FAISS index blend (RVC)")
+@click.option("--threshold", type=float, default=None, help="Noise gate dBFS (RVC)")
+@click.option("--json", "as_json", is_flag=True)
+def voices_rt(name, engine, pitch, index_rate, threshold, as_json):
+    """Show/set a voice's realtime settings (engine, pitch, index rate)."""
+    import json as _json
+
+    from .pipeline import save_voice_rt_settings, voice_rt_settings, voice_rvc_files
+    from .voices import load_voice
+
+    try:
+        v = load_voice(name)
+    except FileNotFoundError as e:
+        raise click.ClickException(str(e)) from e
+    if any(x is not None for x in (engine, pitch, index_rate, threshold)):
+        cfg = save_voice_rt_settings(v, engine=engine, pitch=pitch, index_rate=index_rate, threshold=threshold)
+    else:
+        cfg = voice_rt_settings(v)
+    pth, idx = voice_rvc_files(v)
+    cfg = {**cfg, "rvc_model": str(pth) if pth else None, "rvc_index": str(idx) if idx else None}
+    click.echo(_json.dumps(cfg) if as_json else "\n".join(f"{k:12} {val}" for k, val in cfg.items()))
 
 
 @voices_group.command("create")
