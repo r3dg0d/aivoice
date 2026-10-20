@@ -1,0 +1,283 @@
+{
+  "generated": "2026-10-20T11:26:36+0000",
+  "aivoice_version": "0.5.0",
+  "loudness_target_lufs": -23.0,
+  "similarity_encoder": "GE2E (Resemblyzer pretrained.pt, LSTM 3x256)",
+  "speakers": [
+    {
+      "id": "synth-a",
+      "voice": "synth-a",
+      "description": "espeak-ng en-us+m3, 165 wpm, pitch 45: a synthetic formant voice",
+      "real_person": false,
+      "synthesis_authorized": true,
+      "publication_authorized": true,
+      "license": "Generated audio; espeak-ng output is not a recording of anyone"
+    },
+    {
+      "id": "synth-b",
+      "voice": "synth-b",
+      "description": "espeak-ng en+f4, 175 wpm, pitch 60: a synthetic formant voice",
+      "real_person": false,
+      "synthesis_authorized": true,
+      "publication_authorized": true,
+      "license": "Generated audio; espeak-ng output is not a recording of anyone"
+    }
+  ],
+  "samples": [
+    {
+      "category": "reference",
+      "title": "Reference voice",
+      "speaker": "synth-a",
+      "text": "The birch canoe slid on the smooth planks. Glue the sheet to the dark blue background. It's easy to tell the depth of a well.",
+      "file": "synth-a/reference.wav",
+      "engine": "espeak-ng",
+      "seconds": 7.166,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "427ca7adeb4acdcf45801dc2e412f2eb5f1423d4f016050017d11b384773478d"
+    },
+    {
+      "category": "reference-preparation",
+      "title": "Upload: quiet, noisy, silence-padded (raw)",
+      "speaker": "synth-a",
+      "text": "The birch canoe slid on the smooth planks. Glue the sheet to the dark blue background. It's easy to tell the depth of a well.",
+      "similarity_to_clean": 0.8164,
+      "file": "synth-a/upload-raw.wav",
+      "engine": "espeak-ng + degradation",
+      "seconds": 9.366,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "3075dfe9c68916f63990634576d937b4eb24db4820ffcf0f25a20b6ddccf00c7"
+    },
+    {
+      "category": "reference-preparation",
+      "title": "Upload after aivoice preparation (trim, loudness)",
+      "speaker": "synth-a",
+      "text": "The birch canoe slid on the smooth planks. Glue the sheet to the dark blue background. It's easy to tell the depth of a well.",
+      "similarity_to_clean": 0.8332,
+      "file": "synth-a/upload-prepared.wav",
+      "engine": "aivoice reference preparation",
+      "seconds": 7.228,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "0f136d481175a6369b34f6aaf3886a74126414b1682ba0f31dc23049699065d4"
+    },
+    {
+      "category": "duration",
+      "title": "Planned duration: naive (6.17s planned)",
+      "speaker": "synth-a",
+      "text": "The juice of lemons makes fine punch. The box was thrown beside the parked truck.",
+      "planned_s": 6.172,
+      "reference_rate_actual_s": 5.108,
+      "file": "synth-a/duration-naive.wav",
+      "engine": "espeak-ng at 137 wpm",
+      "seconds": 6.156,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "2c609dd38da1e7e0469d894d89e820c8efdb11cf16891d8bc8daf07c3799ca29"
+    },
+    {
+      "category": "duration",
+      "title": "Planned duration: silence-aware (4.03s planned)",
+      "speaker": "synth-a",
+      "text": "The juice of lemons makes fine punch. The box was thrown beside the parked truck.",
+      "planned_s": 4.03,
+      "reference_rate_actual_s": 5.108,
+      "file": "synth-a/duration-silence-aware.wav",
+      "engine": "espeak-ng at 209 wpm",
+      "seconds": 4.017,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "cb27890d85df6ee3ed74926422ef68ccc2fa9ffcecd673b33cc19f9959bbaeb1"
+    },
+    {
+      "category": "long-form",
+      "title": "Long-form, naive concatenation (level jumps, splice clicks)",
+      "speaker": "synth-a",
+      "text": "The birch canoe slid on the smooth planks. Glue the sheet to the dark blue background. It's easy to tell the depth of a well, and these days a chicken leg is a rare dish.\n\nRice is often served in round bowls. The juice of lemons makes fine punch.",
+      "file": "synth-a/longform-naive.wav",
+      "engine": "espeak-ng",
+      "seconds": 14.152,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "14fc9d955d6c9bc7fa0edd546ecd4b9006c9493ed63f7ca32d4018e5375ae446"
+    },
+    {
+      "category": "long-form",
+      "title": "Long-form, aivoice segmentation + joins",
+      "speaker": "synth-a",
+      "text": "The birch canoe slid on the smooth planks. Glue the sheet to the dark blue background. It's easy to tell the depth of a well, and these days a chicken leg is a rare dish.\n\nRice is often served in round bowls. The juice of lemons makes fine punch.",
+      "file": "synth-a/longform-aivoice.wav",
+      "engine": "espeak-ng + aivoice long-form",
+      "seconds": 15.942,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "978197692e375d444e6a20d607a7ea19deb5bcca7f153f6763c55a4e5908568d"
+    },
+    {
+      "category": "enhancement",
+      "title": "--enhance auto on the naive long-form (declick, loudness)",
+      "speaker": "synth-a",
+      "text": "The birch canoe slid on the smooth planks. Glue the sheet to the dark blue background. It's easy to tell the depth of a well, and these days a chicken leg is a rare dish.\n\nRice is often served in round bowls. The juice of lemons makes fine punch.",
+      "clicks_before": 2,
+      "clicks_after": 0,
+      "identity_similarity": 0.9953173306147545,
+      "file": "synth-a/longform-naive-enhanced.wav",
+      "engine": "aivoice enhance auto",
+      "seconds": 14.152,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "c9de2a8a67a281f3c1f04651d6b14d3b1e96c23c1dfa2531078d8754d5a65891"
+    },
+    {
+      "category": "reference",
+      "title": "Reference voice",
+      "speaker": "synth-b",
+      "text": "The birch canoe slid on the smooth planks. Glue the sheet to the dark blue background. It's easy to tell the depth of a well.",
+      "file": "synth-b/reference.wav",
+      "engine": "espeak-ng",
+      "seconds": 7.024,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "b4ac3b9400f0f53d6da589765646f06ff0b1e3e40dc2211c205361cfeea5046d"
+    },
+    {
+      "category": "reference-preparation",
+      "title": "Upload: quiet, noisy, silence-padded (raw)",
+      "speaker": "synth-b",
+      "text": "The birch canoe slid on the smooth planks. Glue the sheet to the dark blue background. It's easy to tell the depth of a well.",
+      "similarity_to_clean": 0.8142,
+      "file": "synth-b/upload-raw.wav",
+      "engine": "espeak-ng + degradation",
+      "seconds": 9.224,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "7518d2b683ae7e1247281bf407df4476033c206d5b563415f1659a7e816111ec"
+    },
+    {
+      "category": "reference-preparation",
+      "title": "Upload after aivoice preparation (trim, loudness)",
+      "speaker": "synth-b",
+      "text": "The birch canoe slid on the smooth planks. Glue the sheet to the dark blue background. It's easy to tell the depth of a well.",
+      "similarity_to_clean": 0.878,
+      "file": "synth-b/upload-prepared.wav",
+      "engine": "aivoice reference preparation",
+      "seconds": 7.154,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "c47c2e61118ec29f73b5a73142e7c718dda8edcefc4e998c8a9cf12ef409d119"
+    },
+    {
+      "category": "duration",
+      "title": "Planned duration: naive (6.09s planned)",
+      "speaker": "synth-b",
+      "text": "The juice of lemons makes fine punch. The box was thrown beside the parked truck.",
+      "planned_s": 6.086,
+      "reference_rate_actual_s": 4.95,
+      "file": "synth-b/duration-naive.wav",
+      "engine": "espeak-ng at 142 wpm",
+      "seconds": 6.173,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "e6c237d6e1e12e2cf82f7ff0f031a04028ea483f5a07bd623cb18f0b7ee5acf0"
+    },
+    {
+      "category": "duration",
+      "title": "Planned duration: silence-aware (4.24s planned)",
+      "speaker": "synth-b",
+      "text": "The juice of lemons makes fine punch. The box was thrown beside the parked truck.",
+      "planned_s": 4.239,
+      "reference_rate_actual_s": 4.95,
+      "file": "synth-b/duration-silence-aware.wav",
+      "engine": "espeak-ng at 204 wpm",
+      "seconds": 4.249,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "e645a97c7009f56aa96b0746ab63837b26abd3ede6423c61d8c6a7bc4e5160af"
+    },
+    {
+      "category": "long-form",
+      "title": "Long-form, naive concatenation (level jumps, splice clicks)",
+      "speaker": "synth-b",
+      "text": "The birch canoe slid on the smooth planks. Glue the sheet to the dark blue background. It's easy to tell the depth of a well, and these days a chicken leg is a rare dish.\n\nRice is often served in round bowls. The juice of lemons makes fine punch.",
+      "file": "synth-b/longform-naive.wav",
+      "engine": "espeak-ng",
+      "seconds": 13.795,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "d326f69370fec8ecf00bf1ac9eae66a594232354728af032b1ec5056c9d40563"
+    },
+    {
+      "category": "long-form",
+      "title": "Long-form, aivoice segmentation + joins",
+      "speaker": "synth-b",
+      "text": "The birch canoe slid on the smooth planks. Glue the sheet to the dark blue background. It's easy to tell the depth of a well, and these days a chicken leg is a rare dish.\n\nRice is often served in round bowls. The juice of lemons makes fine punch.",
+      "file": "synth-b/longform-aivoice.wav",
+      "engine": "espeak-ng + aivoice long-form",
+      "seconds": 15.585,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "5aa56550d15cb73d9c563c23c18c933ddcf32ca54813a10eb99a33b67a266f1d"
+    },
+    {
+      "category": "enhancement",
+      "title": "--enhance auto on the naive long-form (declick, loudness)",
+      "speaker": "synth-b",
+      "text": "The birch canoe slid on the smooth planks. Glue the sheet to the dark blue background. It's easy to tell the depth of a well, and these days a chicken leg is a rare dish.\n\nRice is often served in round bowls. The juice of lemons makes fine punch.",
+      "clicks_before": 2,
+      "clicks_after": 0,
+      "identity_similarity": 0.9906122117900721,
+      "file": "synth-b/longform-naive-enhanced.wav",
+      "engine": "aivoice enhance auto",
+      "seconds": 13.795,
+      "sample_rate": 22050,
+      "lufs": -23.0,
+      "sha256": "9f3729f0b3c4744f3a3e540c59673fea36b7dba56b9a82ac37bb9a3a1390781e"
+    }
+  ],
+  "engines": [
+    {
+      "engine": "voxcpm2",
+      "display_name": "VoxCPM2 (OpenBMB)",
+      "task": "tts",
+      "status": "unavailable",
+      "reason": "`voxcpm` is not installed for /usr/bin/python3 (pip install voxcpm in a venv, then set AIVOICE_VOXCPM2_PYTHON)"
+    },
+    {
+      "engine": "xvoice",
+      "display_name": "X-Voice Stage 2",
+      "task": "tts",
+      "status": "unavailable",
+      "reason": "`x-voice` is not installed for /home/user/.venv-aivoice/bin/python (set AIVOICE_XVOICE_PYTHON to its venv)"
+    },
+    {
+      "engine": "voicestar",
+      "display_name": "VoiceStar",
+      "task": "tts",
+      "status": "unavailable",
+      "reason": "`voicestar` is not installed for /home/user/.venv-aivoice/bin/python (pip install voicestar in a venv, then set AIVOICE_VOICESTAR_PYTHON)"
+    },
+    {
+      "engine": "meanvc2",
+      "display_name": "MeanVC2",
+      "task": "vc",
+      "status": "unavailable",
+      "reason": "not installed: aivoice models install meanvc2 --yes"
+    },
+    {
+      "engine": "fish-server",
+      "display_name": "fish-speech server (Drama 3 / S2-Pro)",
+      "task": "tts",
+      "status": "unavailable",
+      "reason": "server not answering: http://127.0.0.1:8080 unreachable: <urlopen error [Errno 111] Connection refused>"
+    },
+    {
+      "engine": "fish-api",
+      "display_name": "Fish Audio API",
+      "task": "tts",
+      "status": "unavailable",
+      "reason": "The hosted Fish Audio API receives your transcribed text (and reference audio for local voices). Allow it explicitly with `aivoice experimental remote allow fish-api`."
+    }
+  ],
+  "notice": "All audio is synthetic. Speakers are espeak-ng formant voices that imitate no real person."
+}
