@@ -26,9 +26,11 @@
           keyring
         ];
 
+        bench = import ./bench/rtx4090/env.nix { inherit pkgs; src = self; };
+
         mkAivoice = extra: py.buildPythonApplication {
           pname = "aivoice";
-          version = "0.4.0";
+          version = "0.5.0";
           src = ./.;
           format = "pyproject";
           nativeBuildInputs = [ py.hatchling ];
@@ -51,6 +53,11 @@
         # CLI with the CPU-side experimental dependencies (VAD, HF manager, audio I/O).
         packages.aivoice-experimental = mkAivoice experimentalPy;
         apps.default = flake-utils.lib.mkApp { drv = self.packages.${system}.default; };
+        # GPU cloning benchmark (docs/benchmark-rtx4090.md): `nix run .#bench-4090 -- --help`
+        packages.bench-4090 = bench.run;
+        apps.bench-4090 = flake-utils.lib.mkApp { drv = bench.run; exePath = "/bin/aivoice-bench-4090"; };
+        # A shell inside the benchmark's FHS environment (venvs, uv, CUDA driver libs).
+        apps.bench-env = flake-utils.lib.mkApp { drv = bench.env; exePath = "/bin/aivoice-bench-env"; };
 
         devShells.default = pkgs.mkShell {
           buildInputs = [

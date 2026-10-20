@@ -307,6 +307,12 @@ BLOCKED = [
 EXPERIMENTS: dict[str, Callable[[], ExperimentResult]] = {"C": exp_reference_prep, "F": exp_duration, "G": exp_enhancement}
 
 
+def write_result(r: ExperimentResult, out_dir: Path) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / f"{r.id}.json").write_text(json.dumps(asdict(r), indent=2, default=str) + "\n")
+    (out_dir / f"{r.id}.md").write_text(r.to_markdown())
+
+
 def run(ids: list[str] | None, out_dir: Path) -> list[ExperimentResult]:
     out_dir.mkdir(parents=True, exist_ok=True)
     results = []
@@ -319,7 +325,6 @@ def run(ids: list[str] | None, out_dir: Path) -> list[ExperimentResult]:
         else:
             b = next(x for x in BLOCKED if x[0] == i)
             r = not_run(*b)
-        (out_dir / f"{r.id}.json").write_text(json.dumps(asdict(r), indent=2, default=str) + "\n")
-        (out_dir / f"{r.id}.md").write_text(r.to_markdown())
+        write_result(r, out_dir)
         results.append(r)
     return results

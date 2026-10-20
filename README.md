@@ -33,7 +33,9 @@ root); details are in [docs/audio-showcase.md](docs/audio-showcase.md).
 
 > No neural cloning engine could be downloaded where these were generated (no Hugging Face access, no GPU).
 > The showcase therefore demonstrates aivoice's own pipeline stages, and `manifest.json` lists the engines
-> as *unavailable* rather than shipping placeholder audio.
+> as *unavailable* rather than shipping placeholder audio. To hear real cloning on your own GPU (your voice and
+> LibriSpeech speakers, every engine, with a report): `nix run github:r3dg0d/aivoice#bench-4090`
+> ([docs/benchmark-rtx4090.md](docs/benchmark-rtx4090.md)).
 
 | What | A | B | Measured |
 |---|---|---|---|

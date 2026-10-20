@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **GPU benchmark kit** (`nix run .#bench-4090`, `bench/rtx4090/`, docs/benchmark-rtx4090.md).
+  - Runs in an FHS environment for NixOS, with one virtualenv per engine.
+  - Asks before downloading model weights.
+  - Builds a dataset of real voices: your own (recorded, with consent prompts) plus LibriSpeech
+    test-clean speakers (CC BY 4.0, benchmark only).
+  - Runs the full benchmark and experiments, then writes a summary and an archive.
+- **`benchmark research` additions:**
+  - `--save-audio` keeps labelled WAVs.
+  - A `report.md` summary.
+  - A real-speech ceiling from held-out recordings.
+  - Engine VRAM measured as peak minus idle, and load time.
+- **Engine experiments** D (engine comparison), E (VoxCPM2 style instructions) and H (fusion pipeline
+  vs raw input, on clean and degraded references), via `research experiments --run D,E,H --dataset DIR`.
+- **Whisper WER.** faster-whisper is an evaluation ASR for WER (`AIVOICE_EVAL_ASR=whisper|none`).
+
 ## 0.5.0 — 2026-10-20
 
 ### Added — zero-shot cloning and research fusion

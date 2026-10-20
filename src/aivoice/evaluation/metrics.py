@@ -88,17 +88,46 @@ def char_error_rate(ref: str, hyp: str) -> float | None:
 
 def intelligibility(x: np.ndarray, sr: int, reference_text: str, *, asr: Any | None = None) -> dict[str, Any]:
     if asr is None:
-        return {"wer": None, "cer": None, "asr": "unavailable (install moonshine-voice or NeMo)"}
+        return {"wer": None, "cer": None, "asr": "unavailable (install faster-whisper, moonshine-voice or NeMo)"}
     hyp = asr.transcribe(x, sr).text
     return {"wer": word_error_rate(reference_text, hyp), "cer": char_error_rate(reference_text, hyp),
             "asr": asr.get_capabilities().name, "hypothesis": hyp,
             "note": "ASR error is a proxy for intelligibility, not a perfect measure"}
 
 
+def _whisper_asr() -> Any | None:
+    import importlib.util
+
+    if importlib.util.find_spec("faster_whisper") is None:
+        return None
+    from .whisper_asr import WhisperEvalASR
+
+    try:
+        be = WhisperEvalASR()
+        be.load_model()
+        return be
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def available_asr() -> Any | None:
-    """A loaded ASR backend for WER if one is installed and registered locally, else None."""
+    """A loaded ASR backend for WER, else None.
+
+    ``AIVOICE_EVAL_ASR=whisper`` uses faster-whisper first, ``none`` disables WER;
+    otherwise Moonshine / Parakeet when registered locally, then faster-whisper
+    if it is installed.
+    """
+    import os
+
     from ..asr import available_backends, create_backend
 
+    choice = os.environ.get("AIVOICE_EVAL_ASR", "").lower()
+    if choice == "none":
+        return None
+    if choice == "whisper":
+        be = _whisper_asr()
+        if be is not None:
+            return be
     for name in ("moonshine-small", "parakeet"):
         if available_backends().get(name) is None:
             try:
@@ -107,7 +136,7 @@ def available_asr() -> Any | None:
                 return be
             except Exception:  # noqa: BLE001
                 continue
-    return None
+    return _whisper_asr()
 
 
 def write_labeled_wav(path: str | Path, x: np.ndarray, sr: int, *, comment: str, software: str = "aivoice") -> Path:
