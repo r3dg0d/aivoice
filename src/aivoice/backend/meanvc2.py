@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import numpy as np
@@ -93,7 +92,6 @@ class MeanVC2Backend:
         _ = sample_rate
         if self._ref is None:
             raise RuntimeError("set_reference() required")
-        t0 = time.perf_counter()
         rt = self.vendor / "runtime" / "run_rt.py"
         if not rt.is_file():
             raise RuntimeError(
