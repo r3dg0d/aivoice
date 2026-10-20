@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Live RVC v1/v2 engine** (`src/aivoice/rvc/rt_worker.py`): the model stays loaded on the GPU and streams mic blocks to `aivoice-virtual-mic`. It is the default engine when a voice has an RVC `.pth`; MeanVC2 remains selectable. Pitch and index-rate controls.
+- `voices resynth`: rebuild a voice's reference sample. New references use Piper TTS run through the voice's RVC model instead of espeak-ng.
+- Quickshell widget in `contrib/quickshell/aivoice/` (engine/pitch/index sliders, input picker with level meter, doctor fixes) and runtime helpers in `scripts/aivoice-runtime/` (CUDA llama.cpp build, Python 3.10 RVC venv, `rvc-infer` bridge).
+
+### Fixed
+- PipeWire pinning: converted output is routed to `aivoice_sink` (no longer leaks to the default speakers) and input is pinned to the chosen source.
+- The chosen input source is unmuted automatically on start.
+- MeanVC2 now receives `--target-spk` and `--device` as CLI flags (it was running on CPU with its bundled test clip).
+- Voice-name parsing no longer truncates titles at the first dash (e.g. "E-Girl" became "E").
+
 ## 0.5.0 — 2026-10-20
 
 ### Added — zero-shot cloning and research fusion

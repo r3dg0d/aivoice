@@ -105,6 +105,12 @@ aivoice voices import-rvc model.zip --no-synthesize      # old behaviour: incomp
 
 The same applies to `aivoice voices install --search …` and `virtualmic --search …`: a downloaded model with no preview audio now becomes a usable voice. Re-importing a package upgrades an earlier *incomplete* entry instead of failing.
 
+## Live RVC v2 engine and Quickshell widget
+
+Voices with an RVC v1/v2 `.pth` now convert live through a persistent RVC engine (default for those voices); MeanVC2 remains available.
+New references are built with Piper TTS through the voice's RVC model (`aivoice voices resynth VOICE`).
+A Quickshell control panel lives in [`contrib/quickshell/aivoice`](contrib/quickshell/aivoice/README.md).
+
 ## Zero-shot voice cloning (0.5)
 
 ```bash
