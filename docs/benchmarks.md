@@ -55,6 +55,8 @@ S2-Pro speed; those must be measured on the target RTX 4090 machine with
 
 ## Zero-shot cloning benchmark (0.5)
 
+On a GPU machine, the one-command kit in [benchmark-rtx4090.md](benchmark-rtx4090.md) does everything below with real voices.
+
 ```bash
 aivoice benchmark research --synthetic --consent-ack            # rights-free espeak-ng speakers
 aivoice benchmark research --dataset my_set/ --engines voxcpm2,voicestar --seeds 0,1,2

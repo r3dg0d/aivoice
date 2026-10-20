@@ -457,14 +457,30 @@ def research_citations():
 
 
 @research_group.command("experiments")
-@click.option("--run", "run_ids", default=None, help="Comma list of experiment ids to run now (C,F,G); default: show results")
+@click.option("--run", "run_ids", default=None,
+              help="Comma list of experiment ids to run now (C,F,G synthetic; D,E,H need engines + --dataset); default: show results")
 @click.option("--output", type=click.Path(path_type=Path), default=None, help="Default: docs/research/experiments if present")
-def research_experiments(run_ids, output):
+@click.option("--dataset", type=click.Path(path_type=Path, exists=True, file_okay=False), default=None,
+              help="Authorized speakers (benchmark layout) for E and H")
+@click.option("--results", "results_json", type=click.Path(path_type=Path), default=None,
+              help="results.json of `benchmark research` for D")
+@click.option("--engines", "engine_list", default=None, help="Engines for H (default: installed voxcpm2, xvoice, voicestar)")
+@click.option("--audio-out", type=click.Path(path_type=Path), default=None, help="Save example outputs of E/H here (labelled WAV)")
+def research_experiments(run_ids, output, dataset, results_json, engine_list, audio_out):
     from .evaluation import experiments as ex
 
     out = output or (Path("docs/research/experiments") if Path("docs/research").is_dir() else Path("research-experiments"))
     if run_ids:
-        for r in ex.run([i.strip() for i in run_ids.split(",")], out):
+        ids = [i.strip().upper() for i in run_ids.split(",")]
+        engine_ids = [i for i in ids if i in ("D", "E", "H") and (dataset is not None or results_json is not None)]
+        results = ex.run([i for i in ids if i not in engine_ids], out) if [i for i in ids if i not in engine_ids] else []
+        if engine_ids:
+            from .evaluation.engine_experiments import run_engine_experiments
+
+            results += run_engine_experiments(engine_ids, dataset=dataset, results_json=results_json, out_dir=out,
+                                              engines=[e.strip() for e in engine_list.split(",")] if engine_list else None,
+                                              audio_out=audio_out)
+        for r in results:
             click.echo(f"{r.id} {r.status}: {r.decision}")
         click.echo(f"written to {out}")
         return
@@ -490,8 +506,9 @@ def research_experiments(run_ids, output):
 @click.option("--seeds", default="0,1", show_default=True)
 @click.option("--device", default=None)
 @click.option("--no-prepare", is_flag=True, help="Ablation: raw references instead of prepared ones")
+@click.option("--save-audio", is_flag=True, help="Keep every output as a labelled WAV under OUTPUT/audio/")
 @click.option("--consent-ack", is_flag=True)
-def benchmark_research(engine_list, dataset, synthetic, output, seeds, device, no_prepare, consent_ack):
+def benchmark_research(engine_list, dataset, synthetic, output, seeds, device, no_prepare, save_audio, consent_ack):
     """Every engine on the same references/texts/seeds: similarity, WER, RTF, first audio, RAM, VRAM (JSON + CSV)."""
     from .consent import require_consent
     from .evaluation.benchmark import run_research_benchmark, synthetic_dataset
@@ -503,7 +520,7 @@ def benchmark_research(engine_list, dataset, synthetic, output, seeds, device, n
         dataset = synthetic_dataset(Path(output) / "_synthetic_dataset")
     names_ = None if engine_list in ("all", "installed") else [e.strip() for e in engine_list.split(",")]
     res = run_research_benchmark(names_, dataset, Path(output), seeds=tuple(int(s) for s in seeds.split(",")),
-                                 prepare=not no_prepare, device=device)
+                                 prepare=not no_prepare, device=device, save_audio=save_audio)
     for r in res["rows"]:
         if r.get("status") == "summary":
             click.echo(f"{r['engine']:<12} similarity {r.get('speaker_similarity')}  wer {r.get('wer')}  "
@@ -513,5 +530,5 @@ def benchmark_research(engine_list, dataset, synthetic, output, seeds, device, n
             click.echo(f"{r['engine']:<12} {r['status']}")
     for s in res["meta"]["skipped_speakers"]:
         click.echo(f"skipped speaker {s}")
-    click.echo(f"results: {Path(output) / 'results.json'} , {Path(output) / 'results.csv'}")
+    click.echo(f"results: {Path(output) / 'results.json'} , {Path(output) / 'results.csv'} , {Path(output) / 'report.md'}")
 
