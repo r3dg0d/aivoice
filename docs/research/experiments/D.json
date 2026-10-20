@@ -1,0 +1,15 @@
+{
+  "id": "D",
+  "title": "New speaker conditioning (VoxCPM2 / X-Voice transcript-free)",
+  "change": "Same references and texts across VoxCPM2, X-Voice, VoiceStar vs Fish S2-Pro; GE2E similarity, WER, first-audio, RTF, VRAM.",
+  "rationale": "",
+  "implemented": "",
+  "baseline": "",
+  "status": "not run",
+  "metrics": {},
+  "decision": "NOT RUN: model weights unavailable here (Hugging Face blocked), no GPU",
+  "regression": "",
+  "limitations": [],
+  "data": "",
+  "seconds": 0.0
+}

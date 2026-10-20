@@ -71,19 +71,24 @@ def _ci(values: list[float]) -> dict[str, float]:
 
 
 def exp_duration(seed: int = 0) -> ExperimentResult:
-    from ..research.duration import naive_plan, plan_duration, voicestar_default
+    from ..research.duration import naive_plan, plan_duration, silence_edges, voicestar_default
 
     t0 = time.perf_counter()
     rng = np.random.default_rng(seed)
     errs: dict[str, list[float]] = {"naive_whole_clip": [], "voicestar_default": [], "silence_aware_transcript": [],
                                     "silence_aware_acoustic": []}
     by_bucket: dict[str, dict[str, list[float]]] = {}
+    span_err: list[float] = []
+    signed_total: list[float] = []
+    signed_span: list[float] = []
     for spk in sd.SPEAKERS:
         utts = [(t, *sd.speak(t, spk)) for t in sd.HARVARD[:8]]
         for i in range(len(utts) - 1):
             ref_text, ref_x, sr = utts[i]
             tgt_text, tgt_x, _ = utts[i + 1]
             true_s = tgt_x.size / sr
+            lead_t, trail_t = silence_edges(tgt_x, sr)
+            true_span = true_s - lead_t - trail_t
             lead, trail = float(rng.uniform(0, 2)), float(rng.uniform(0, 2))
             ref = sd.pad_silence(ref_x, sr, lead, trail, seed=seed + i)
             ref_dur = ref.size / sr
@@ -93,6 +98,10 @@ def exp_duration(seed: int = 0) -> ExperimentResult:
                 "silence_aware_transcript": plan_duration(tgt_text, ref, sr=sr, transcript=ref_text).seconds,
                 "silence_aware_acoustic": plan_duration(tgt_text, ref, sr=sr).seconds,
             }
+            sa = est["silence_aware_transcript"]
+            span_err.append(abs(sa - true_span) / true_span)
+            signed_total.append((sa - true_s) / true_s)
+            signed_span.append((sa - true_span) / true_span)
             bucket = "pad<1s" if lead + trail < 1 else ("pad1-2s" if lead + trail < 2 else "pad>2s")
             for k, v in est.items():
                 e = abs(v - true_s) / true_s
@@ -104,6 +113,8 @@ def exp_duration(seed: int = 0) -> ExperimentResult:
         "abs_relative_duration_error": {k: _ci(v) for k, v in errs.items()},
         "improvement_naive_minus_silence_aware_transcript": imp,
         "by_total_padding": {b: {k: round(float(np.mean(v)), 4) for k, v in d.items()} for b, d in sorted(by_bucket.items())},
+        "silence_aware_transcript_vs_speech_span": {"abs_rel_error": _ci(span_err), "signed_rel_error": _ci(signed_span)},
+        "silence_aware_transcript_signed_vs_total": _ci(signed_total),
         "syllable_counter": "espeak-ng IPA vowel nuclei" if sd.available() else "orthographic",
         "pairs": len(errs["naive_whole_clip"]),
     }
@@ -119,7 +130,10 @@ def exp_duration(seed: int = 0) -> ExperimentResult:
                   if keep else "REJECT: improvement not significant"),
         regression="adds one VAD pass over the reference (~ms); no synthesis cost",
         limitations=["espeak-ng formant speech with exact, constant speaking rate; natural speech varies more",
-                     "measures the duration *plan*, not a model's adherence to it (no duration-controlled model ran here)"],
+                     "measures the duration *plan*, not a model's adherence to it (no duration-controlled model ran here)",
+                     "the plan predicts the speech span (with internal pauses); ground-truth totals also contain the "
+                     "synthesizer's own edge silence (~0.3 s for espeak-ng), hence a negative signed error vs total. "
+                     "No edge allowance is added because it is engine-specific and would be tuned on espeak"],
         data="4 synthetic espeak-ng speakers x 7 reference->target Harvard-sentence pairs, uniform 0-2 s lead and trail padding",
         seconds=time.perf_counter() - t0,
     )

@@ -1,0 +1,95 @@
+# G: Output enhancement and long-form joins
+
+- **Status:** measured
+- **What changed:** Equal-power crossfades + loudness matching at segment joins; `--enhance auto` click repair + loudness.
+- **Why (paper):** VoiceStar targets long-form stability; boundary clicks and level jumps are the audible failure of stitched long-form output.
+- **Implemented as:** audio/enhancement.py (crossfade_concat, loudness_matched, enhance auto with identity guard).
+- **Baseline:** hard concatenation with level jumps and injected clicks
+- **Data:** 4 synthetic speakers x 5 Harvard sentences with random segment gains, 3 injected clicks each
+
+## Measured
+
+```json
+{
+  "clicks_hard": {
+    "mean": 3.0,
+    "ci95": [
+      3.0,
+      3.0
+    ],
+    "n": 4
+  },
+  "clicks_fused": {
+    "mean": 0.5,
+    "ci95": [
+      0.0,
+      1.0
+    ],
+    "n": 4
+  },
+  "lufs_spread_hard": {
+    "mean": 3.9996,
+    "ci95": [
+      3.7313,
+      4.2584
+    ],
+    "n": 4
+  },
+  "lufs_spread_fused": {
+    "mean": 0.7051,
+    "ci95": [
+      0.1921,
+      1.2182
+    ],
+    "n": 4
+  },
+  "clicks_enhanced": {
+    "mean": 0.0,
+    "ci95": [
+      0.0,
+      0.0
+    ],
+    "n": 4
+  },
+  "identity_enhanced_vs_input": {
+    "mean": 0.9949,
+    "ci95": [
+      0.9926,
+      0.9968
+    ],
+    "n": 4
+  },
+  "detections_on_clean_segments": {
+    "mean": 0.1,
+    "ci95": [
+      0.0,
+      0.25
+    ],
+    "n": 20
+  },
+  "enhance_changes_clean": {
+    "mean": 0.1,
+    "ci95": [
+      0.0,
+      0.25
+    ],
+    "n": 20
+  },
+  "click_reduction_by_enhance_auto": {
+    "mean": 3.0,
+    "ci95": [
+      3.0,
+      3.0
+    ],
+    "n": 4
+  }
+}
+```
+
+**Decision:** joins: RETAIN (always used for long-form); enhance auto: available, default OFF for single utterances (only helps when artifacts exist), identity preserved
+
+**Performance cost / regression:** enhancement adds analysis passes (tens of ms per utterance)
+
+## Limitations
+
+- clicks are synthetic impulses; real codec/vocoder artifacts differ

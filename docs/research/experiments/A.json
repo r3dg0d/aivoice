@@ -1,0 +1,15 @@
+{
+  "id": "A",
+  "title": "Baseline A: MeanVC2 conversion",
+  "change": "Convert a common neutral source (espeak) to each target with MeanVC2; GE2E similarity, WER, RTF.",
+  "rationale": "",
+  "implemented": "",
+  "baseline": "",
+  "status": "not run",
+  "metrics": {},
+  "decision": "NOT RUN: MeanVC2 weights/vendor not installable here (huggingface.co and GitHub blocked)",
+  "regression": "",
+  "limitations": [],
+  "data": "",
+  "seconds": 0.0
+}
