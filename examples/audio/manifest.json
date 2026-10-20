@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-20T11:18:15+0000",
-  "aivoice_version": "0.4.0",
+  "generated": "2026-10-20T11:26:36+0000",
+  "aivoice_version": "0.5.0",
   "loudness_target_lufs": -23.0,
   "similarity_encoder": "GE2E (Resemblyzer pretrained.pt, LSTM 3x256)",
   "speakers": [
@@ -34,7 +34,7 @@
       "seconds": 7.166,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "22b96535af08a4faf84eefd8252434bbd0876235d325fc1b1d7bf40a76337fd5"
+      "sha256": "427ca7adeb4acdcf45801dc2e412f2eb5f1423d4f016050017d11b384773478d"
     },
     {
       "category": "reference-preparation",
@@ -47,7 +47,7 @@
       "seconds": 9.366,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "da9136054c1a2f71346f8d342b9892a90c0a9f28fd7a84f721f46bfe464532e8"
+      "sha256": "3075dfe9c68916f63990634576d937b4eb24db4820ffcf0f25a20b6ddccf00c7"
     },
     {
       "category": "reference-preparation",
@@ -60,7 +60,7 @@
       "seconds": 7.228,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "0fb0469578f9217878f151669ea621f8bff1e1896acb4988cdb5dd700544b598"
+      "sha256": "0f136d481175a6369b34f6aaf3886a74126414b1682ba0f31dc23049699065d4"
     },
     {
       "category": "duration",
@@ -74,7 +74,7 @@
       "seconds": 6.156,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "bc5a851976e81ce3a56b48af00622c4784e529930c106900ad4a7e55c0e2cb6e"
+      "sha256": "2c609dd38da1e7e0469d894d89e820c8efdb11cf16891d8bc8daf07c3799ca29"
     },
     {
       "category": "duration",
@@ -88,7 +88,7 @@
       "seconds": 4.017,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "702659346eae362091c8feb76471dc0887ae957985e44a50c483883c98aa71fb"
+      "sha256": "cb27890d85df6ee3ed74926422ef68ccc2fa9ffcecd673b33cc19f9959bbaeb1"
     },
     {
       "category": "long-form",
@@ -100,7 +100,7 @@
       "seconds": 14.152,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "2d951005e9e9b03da635f3f70cbe450b17bddd6892260904b9ac47f2fc1c3416"
+      "sha256": "14fc9d955d6c9bc7fa0edd546ecd4b9006c9493ed63f7ca32d4018e5375ae446"
     },
     {
       "category": "long-form",
@@ -112,7 +112,7 @@
       "seconds": 15.942,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "9031bb74dd411a4605c7489546bb4aeea66d2c6c8f6ee865cae60f21023fc4d3"
+      "sha256": "978197692e375d444e6a20d607a7ea19deb5bcca7f153f6763c55a4e5908568d"
     },
     {
       "category": "enhancement",
@@ -127,7 +127,7 @@
       "seconds": 14.152,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "894bdccd322967970fc7334d65ab97d76c5554a3bc5071bac18a4fc077fb3078"
+      "sha256": "c9de2a8a67a281f3c1f04651d6b14d3b1e96c23c1dfa2531078d8754d5a65891"
     },
     {
       "category": "reference",
@@ -139,7 +139,7 @@
       "seconds": 7.024,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "fc2dc771a9221ca4d71b3a3cc77b90d897cfca0654433dc828949154f4f7b094"
+      "sha256": "b4ac3b9400f0f53d6da589765646f06ff0b1e3e40dc2211c205361cfeea5046d"
     },
     {
       "category": "reference-preparation",
@@ -152,7 +152,7 @@
       "seconds": 9.224,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "e6c99e96e007fc82ce65af880976172e167c5016dbe56dd75863c60346a2b6aa"
+      "sha256": "7518d2b683ae7e1247281bf407df4476033c206d5b563415f1659a7e816111ec"
     },
     {
       "category": "reference-preparation",
@@ -165,7 +165,7 @@
       "seconds": 7.154,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "13257af7251575776ca91edb16969d902fe2392857f6692ca8dd2fd165c57296"
+      "sha256": "c47c2e61118ec29f73b5a73142e7c718dda8edcefc4e998c8a9cf12ef409d119"
     },
     {
       "category": "duration",
@@ -179,7 +179,7 @@
       "seconds": 6.173,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "02668ee755e5217f9f626f9062bb1cb4b187890b58799ab3cbeac3e16349b7b9"
+      "sha256": "e6c237d6e1e12e2cf82f7ff0f031a04028ea483f5a07bd623cb18f0b7ee5acf0"
     },
     {
       "category": "duration",
@@ -193,7 +193,7 @@
       "seconds": 4.249,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "8748a45ce2a89bd965bb925556e9bdea09d2c77864adc723704144034bdb0ffd"
+      "sha256": "e645a97c7009f56aa96b0746ab63837b26abd3ede6423c61d8c6a7bc4e5160af"
     },
     {
       "category": "long-form",
@@ -205,7 +205,7 @@
       "seconds": 13.795,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "2ad6235892bf6e86e1c42b11b0e7d9423bbee1de433c6d423efca7c54ae886dd"
+      "sha256": "d326f69370fec8ecf00bf1ac9eae66a594232354728af032b1ec5056c9d40563"
     },
     {
       "category": "long-form",
@@ -217,7 +217,7 @@
       "seconds": 15.585,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "a8aa76fb86a7d39d6fe8ae782484360a982d6c022b031df2956640a746ebfed0"
+      "sha256": "5aa56550d15cb73d9c563c23c18c933ddcf32ca54813a10eb99a33b67a266f1d"
     },
     {
       "category": "enhancement",
@@ -232,7 +232,7 @@
       "seconds": 13.795,
       "sample_rate": 22050,
       "lufs": -23.0,
-      "sha256": "d8e570ea6ab3d9c2d7950bea50a76826c3a2bcf9d7d914f8a2eb371bd0237546"
+      "sha256": "9f3729f0b3c4744f3a3e540c59673fea36b7dba56b9a82ac37bb9a3a1390781e"
     }
   ],
   "engines": [
@@ -241,7 +241,7 @@
       "display_name": "VoxCPM2 (OpenBMB)",
       "task": "tts",
       "status": "unavailable",
-      "reason": "`voxcpm` is not installed for /home/user/.venv-aivoice/bin/python (pip install voxcpm in a venv, then set AIVOICE_VOXCPM2_PYTHON)"
+      "reason": "`voxcpm` is not installed for /usr/bin/python3 (pip install voxcpm in a venv, then set AIVOICE_VOXCPM2_PYTHON)"
     },
     {
       "engine": "xvoice",

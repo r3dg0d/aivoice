@@ -32,9 +32,8 @@ from aivoice.engines.base import SynthesisOptions  # noqa: E402
 from aivoice.engines.registry import all_status, get_engine  # noqa: E402
 from aivoice.evaluation import synthetic_data as sd  # noqa: E402
 from aivoice.evaluation.metrics import acoustic_metrics, speaker_similarity, write_labeled_wav  # noqa: E402
-from aivoice.research.duration import count_syllables, naive_plan, plan_duration  # noqa: E402
+from aivoice.research.duration import naive_plan, plan_duration  # noqa: E402
 from aivoice.research.longform import split_text  # noqa: E402
-from aivoice.research.reference_quality import analyze_reference  # noqa: E402
 
 TARGET_LUFS = -23.0
 LONG_TEXT = (

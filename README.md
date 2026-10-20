@@ -11,6 +11,38 @@ See [docs/experimental-realtime.md](docs/experimental-realtime.md).
 > Drama 3 is a 35B MoE that needs ≥ 48 GB of GPU memory (FP8). It does **not** fit a 24 GB RTX 4090;
 > run S2-Pro locally, or Drama 3 on a bigger GPU / the hosted API. Details: [docs/drama3.md](docs/drama3.md).
 
+**New in 0.5:** **zero-shot voice cloning** (`aivoice clone …`).
+- **Engines.** VoxCPM2, X-Voice and VoiceStar sit behind one capability-checked engine layer, with Fish
+  and MeanVC2 alongside them.
+- **Research fusion.** Reference preparation, silence-aware duration planning, long-form joins and
+  identity-guarded enhancement, each kept only where an ablation showed it helps.
+- **Evaluation.** A benchmark and evaluation suite.
+
+See [docs/zero-shot-cloning.md](docs/zero-shot-cloning.md).
+
+## Listen to aivoice — Voice Cloning Showcase
+
+All samples are **synthetic** and rights-free:
+
+- The speakers are espeak-ng formant voices that imitate no real person.
+- Every file carries an embedded "synthetic speech" label.
+- Every file is loudness-matched to −23 LUFS.
+
+The A/B player is at [docs/demo/index.html](docs/demo/index.html) (GitHub Pages from the repository
+root); details are in [docs/audio-showcase.md](docs/audio-showcase.md).
+
+> No neural cloning engine could be downloaded where these were generated (no Hugging Face access, no GPU).
+> The showcase therefore demonstrates aivoice's own pipeline stages, and `manifest.json` lists the engines
+> as *unavailable* rather than shipping placeholder audio.
+
+| What | A | B | Measured |
+|---|---|---|---|
+| Reference voice | [synth-a](examples/audio/synth-a/reference.wav) | [synth-b](examples/audio/synth-b/reference.wav) | |
+| Reference preparation | [noisy upload](examples/audio/synth-a/upload-raw.wav) | [prepared](examples/audio/synth-a/upload-prepared.wav) | GE2E similarity to the clean voice 0.816 → 0.833 |
+| Duration planning | [whole-clip rate](examples/audio/synth-a/duration-naive.wav) | [silence-aware](examples/audio/synth-a/duration-silence-aware.wav) | planned 6.17 s vs 4.03 s (natural 5.11 s) |
+| Long-form | [hard concatenation](examples/audio/synth-a/longform-naive.wav) | [aivoice joins](examples/audio/synth-a/longform-aivoice.wav) | level jumps and splice clicks removed |
+| Enhancement | [naive long-form](examples/audio/synth-a/longform-naive.wav) | [`--enhance auto`](examples/audio/synth-a/longform-naive-enhanced.wav) | clicks 2 → 0 |
+
 ## Quick start
 
 ```bash
@@ -73,6 +105,48 @@ aivoice voices import-rvc model.zip --no-synthesize      # old behaviour: incomp
 
 The same applies to `aivoice voices install --search …` and `virtualmic --search …`: a downloaded model with no preview audio now becomes a usable voice. Re-importing a package upgrades an earlier *incomplete* entry instead of failing.
 
+## Zero-shot voice cloning (0.5)
+
+```bash
+aivoice engines list                                   # what is installed and ready
+aivoice clone create "Narrator" --reference narrator.wav --transcript "Exact words." --i-have-rights
+aivoice clone synthesize --voice Narrator --text "Hello." -o hello.wav            # engine chosen automatically
+aivoice clone synthesize --voice Narrator --text "Hello." -o h.wav --engine voxcpm2 --style "warm, unhurried"
+aivoice clone compare --voice Narrator --text "Same text, every engine." --output compare/
+aivoice benchmark research --synthetic --consent-ack   # similarity / WER / RTF / VRAM, JSON + CSV
+aivoice research list                                  # papers, what aivoice took from each, status
+```
+
+| Engine | Kind | Zero-shot conditioning | Highlights | Rate |
+|---|---|---|---|---|
+| VoxCPM2 (OpenBMB, 2B) | TTS | reference audio, transcript optional | 30 languages, `--style` instructions, streaming, LoRA | 48 kHz |
+| X-Voice (0.4B) | TTS | transcript-free | 30 languages via IPA, code-switching, duration | 24 kHz |
+| VoiceStar (840M) | TTS | reference + transcript | duration control, long-form | 16 kHz |
+| Fish S2-Pro / Drama 3 | TTS | reference + transcript | existing server / hosted API | 44.1 kHz |
+| MeanVC2 | VC | reference audio | streaming conversion (existing) | 16 kHz |
+
+**How it works**
+
+- **Unsupported options are refused.** An engine never silently ignores an option it cannot honour
+  (`--allow-unsupported` drops it with a warning).
+- **Each engine runs in its own virtualenv** through an isolated worker
+  ([docs/model-backends.md](docs/model-backends.md)).
+- **Pipeline stages.** Every result runs through text normalization, routing, a prepared reference, the
+  duration plan, long-form joins, optional enhancement and evaluation
+  ([docs/research-fusion.md](docs/research-fusion.md)).
+- **Labelled output.** Each output WAV is labelled as synthetic and gets a JSON sidecar.
+- **Profiles.** Existing `voices` and `voice` profiles are untouched; `aivoice clone migrate` copies them
+  into the new format.
+
+Measured ablations, on rights-free synthetic speakers ([docs/research/experiments](docs/research/experiments/)):
+
+| Change | Baseline → aivoice | Decision |
+|---|---|---|
+| Silence-aware duration plan (Cross-Lingual F5-TTS 2 → VoiceStar) | mean absolute duration error 0.82 (VoiceStar default) → 0.15 | retained |
+| Reference denoise when noisy | +0.036 GE2E cosine (95% CI 0.020–0.053) | retained as `auto` |
+| Long-form joins | loudness spread 4.0 → 0.7 LU; clicks 3 → 0.5 | retained |
+| Engine comparisons (A, B, D, E, H) | not run: weights unreachable, no GPU | — |
+
 ## Experimental real-time mode (0.4)
 
 ```bash
@@ -102,6 +176,12 @@ Docs: [experimental-realtime](docs/experimental-realtime.md) · [moonshine](docs
 [huggingface-model-manager](docs/huggingface-model-manager.md) · [voice-profiles](docs/voice-profiles.md) ·
 [llm-transformation](docs/llm-transformation.md) · [latency-optimization](docs/latency-optimization.md) ·
 [nixos-pipewire](docs/nixos-pipewire.md) · [benchmarks](docs/benchmarks.md) · [troubleshooting](docs/troubleshooting.md)
+
+Cloning docs: [architecture](docs/architecture.md) · [zero-shot-cloning](docs/zero-shot-cloning.md) ·
+[model-backends](docs/model-backends.md) · [speaker-conditioning](docs/speaker-conditioning.md) ·
+[research-fusion](docs/research-fusion.md) · [multilingual-tts](docs/multilingual-tts.md) ·
+[voice-style-control](docs/voice-style-control.md) · [audio-showcase](docs/audio-showcase.md) ·
+[research review](docs/research/research-review.md) · [methodology](docs/research/methodology.md)
 
 Privacy: local by default. Remote TTS destinations need `experimental remote allow`; only text
 (and the reference audio of local voice profiles) is sent, never microphone audio. No telemetry.
@@ -148,6 +228,10 @@ aivoice models install meanvc2 --yes
 | `aivoice models list\|install` | MeanVC2 **base** models |
 | `aivoice doctor` | Environment checks |
 | `aivoice devices` / `live` / `file` | Devices & conversion |
+| `aivoice clone create\|list\|inspect\|preview\|synthesize\|compare\|delete\|migrate\|attest\|adapt` | Zero-shot cloning (0.5) |
+| `aivoice engines list\|info\|capabilities\|benchmark` | Cloning / conversion engines |
+| `aivoice benchmark research` | Similarity, WER/CER, latency, memory across engines |
+| `aivoice research list\|citations\|experiments` | Papers, status, ablations |
 
 ### Modes
 
@@ -168,6 +252,10 @@ aivoice models install meanvc2 --yes
 | **Our wrapper** | **Apache-2.0** — [LICENSE](LICENSE) |
 | **MeanVC2 upstream** | README claims Apache-2.0; see [NOTICE](NOTICE) |
 | **HF weights** | Apache-2.0 claimed on model card |
+| **VoxCPM2** (optional, own venv) | Apache-2.0 code and weights (official README) |
+| **VoiceStar** (optional) | code MIT, weights CC-BY-4.0 |
+| **X-Voice** (optional) | code MIT; check the weights' model card |
+| **Resemblyzer GE2E weights** (evaluation) | Apache-2.0 |
 
 ## Citation
 
@@ -179,5 +267,10 @@ aivoice models install meanvc2 --yes
   year={2026}
 }
 ```
+
+Zero-shot cloning builds on VoxCPM2, X-Voice, VoiceStar, Cross-Lingual F5-TTS 2, PFluxTTS, FC-TTS, FlexiVoice and
+Confucius4-TTS. BibTeX for all of them: [docs/research/citations.bib](docs/research/citations.bib)
+(`aivoice research citations`). What each one contributed, and what could not be verified, is in
+[docs/research/research-review.md](docs/research/research-review.md).
 
 See [STATUS.md](STATUS.md) for honest limitations.

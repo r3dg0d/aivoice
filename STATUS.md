@@ -1,4 +1,4 @@
-# STATUS — aivoice 0.4.0
+# STATUS — aivoice 0.5.0
 
 Honest limitations (as of 2026-10-18).
 
@@ -67,3 +67,27 @@ The development container had no GPU and could not reach huggingface.co or downl
 ## Privacy
 
 Search queries go to the selected provider. Microphone audio, converted speech, and reference clips are **not** uploaded by aivoice. Experimental mode sends recognised text (and local voice reference audio) only to a remote TTS you explicitly allowed (`aivoice experimental remote allow`). Synthesizing a reference loads the local RVC `.pth` (a pickle) and does not upload it.
+
+
+## Zero-shot cloning (0.5.0, as of 2026-10-20)
+
+### Verified in this repository
+- **Engine layer.** Capability checking, the isolated worker protocol (with a real subprocess tone
+  engine), the router, the fusion pipeline, profiles v2 and migration, and the clone/engines/research CLI.
+- **Engine adapters.** VoxCPM2, VoiceStar and X-Voice are tested against fakes with the official packages'
+  signatures (read from the PyPI wheels).
+- **Real measurements here.** GE2E similarity (identical to Resemblyzer), Silero VAD, espeak-ng
+  synthetic speakers, and experiments C, F and G (docs/research/experiments).
+
+### Not verified here
+- **The neural engines.** No VoxCPM2, VoiceStar, X-Voice, MeanVC2 or Fish model was run. huggingface.co
+  was unreachable and there is no GPU. Their quality, speed and VRAM on an RTX 4090 are unmeasured;
+  figures in the docs that come from upstream READMEs are labelled as such.
+- **Engine-dependent experiments.** A, B, D, E and H (engine comparisons, style separation, the full
+  pipeline) were not run.
+- **WER / CER.** These need an installed ASR backend, so the synthetic benchmark leaves them empty.
+- **No Gradio interface.** It was optional and was not built.
+- **Unverified sources.** Confucius4-TTS and the EURASIP adaptation article could not be retrieved, and
+  nothing depends on them.
+- **Vector-field fusion.** It is implemented but unused, because no installed engine pair shares a
+  compatible state space.

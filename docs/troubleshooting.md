@@ -29,3 +29,16 @@
 Logs and state: `$XDG_RUNTIME_DIR/aivoice/engine.json` (live status),
 `~/.config/aivoice/settings.json`, `~/.local/share/aivoice/models/registry.json`,
 `~/.cache/aivoice/benchmarks/`.
+
+## Zero-shot cloning (0.5)
+
+| Symptom | Cause / fix |
+|---|---|
+| `` `voxcpm` is not installed for ... `` | Install the engine in its own venv and point aivoice at it: `AIVOICE_VOXCPM2_PYTHON=~/.venvs/voxcpm/bin/python` ([model-backends](model-backends.md)) |
+| `UnsupportedOption: ... has no natural-language style control` | That engine cannot honour the option. Choose another engine (`aivoice engines capabilities`) or pass `--allow-unsupported` to drop it |
+| `no installed engine can do this` | Every reason is listed per engine. The usual causes are a missing transcript (VoiceStar, Fish), not enough VRAM, or a remote engine without `--consent-ack` |
+| `profile ... has no consent attestation` | Migrated profiles need `aivoice clone attest ID --i-have-rights` |
+| A preparation step shows as `reverted` | Its output lowered speaker similarity below 0.90, so the original was kept. That is intended |
+| `speaker encoder weights not found` / `needs torch` / `needs librosa` | `pip install 'aivoice[research]'` (torch, librosa, resemblyzer). Only Resemblyzer's `pretrained.pt` is used, loaded with `weights_only=True` |
+| X-Voice is slow per call | It runs through its CLI and reloads the model on every call. Use VoxCPM2 for interactive work |
+| VoiceStar output has the wrong length | Give the profile a transcript; without one, the duration plan falls back to acoustic syllable counting |
