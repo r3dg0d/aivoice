@@ -593,12 +593,18 @@ def profile_list():
         click.echo(f"{p.name}\tmode={p.mode}\tref={p.reference}")
 
 
-@main.command("benchmark")
+@main.group("benchmark", invoke_without_command=True)
 @click.option("--frames", default=50, show_default=True)
 @click.option("--mode", type=_mode_choice(), default="balanced")
 @click.option("--consent-ack", is_flag=True)
-def benchmark_cmd(frames, mode, consent_ack):
-    """Benchmark buffer overhead (full VC RTF needs models + preferably CUDA)."""
+@click.pass_context
+def benchmark_cmd(ctx, frames, mode, consent_ack):
+    """Benchmark buffer overhead (full VC RTF needs models + preferably CUDA).
+
+    `aivoice benchmark research ...` runs the engine research benchmark.
+    """
+    if ctx.invoked_subcommand is not None:
+        return
     require_consent(ack=consent_ack)
     click.echo(benchmark_overhead(frames=frames, mode=mode))
     click.echo("CPU fallback is documented; CUDA preferred for realtime RTF < 1.")
@@ -681,6 +687,12 @@ def _resolve_reference(
 from .cli_experimental import register as _register_experimental  # noqa: E402
 
 _register_experimental(main, models_group)
+
+from .cli_clone import benchmark_research as _benchmark_research  # noqa: E402
+from .cli_clone import register as _register_clone  # noqa: E402
+
+_register_clone(main)
+benchmark_cmd.add_command(_benchmark_research)
 
 
 if __name__ == "__main__":
