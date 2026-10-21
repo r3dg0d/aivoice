@@ -487,8 +487,89 @@ class StreamVoiceAnonHandler:
         return np.zeros(0, np.float32)
 
 
+class VossaHandler:
+    """VOSSA (Morris88826/VOSSA @ 5dd1a5c, official code + official checkpoints, CC BY-NC 4.0): src.streaming API."""
+
+    def load(self, req):
+        repo = req["repo_dir"]
+        sys.path.insert(0, repo)
+        with pushd_path(repo):
+            from src.pretrained import load_vossa  # type: ignore
+            from src.streaming import VossaStreamer  # type: ignore
+
+            # Lightning checkpoints are pickles: allowed only with the same explicit opt-in as other engines
+            with safe_torch_load(bool(req.get("trust_pickle"))):
+                model = load_vossa(local_dir=req["checkpoint_dir"], device=req.get("device"))
+        la = req.get("lookahead")
+        self.streamer = VossaStreamer(model, chunk_frames=int(req.get("chunk_frames", 3)),
+                                      lookahead=None if la is None else int(la),
+                                      use_cuda_graph=bool(req.get("cuda_graph", True)))
+        self.sample_rate = int(self.streamer.sample_rate)
+        self.session = None
+        return {"sample_rate": self.sample_rate, "lookahead_frames": self.streamer.step.lookahead,
+                "chunk_frames": int(req.get("chunk_frames", 3)), **cuda_mem()}
+
+    def prepare(self, req):
+        import librosa
+
+        ref, _ = librosa.load(req["reference"], sr=self.sample_rate)
+        self.target = ref
+        return {}
+
+    def start(self, req):
+        self.session = self.streamer.session(self.target)
+        return {}
+
+    def chunk(self, x):
+        return np.asarray(self.session.push(x), np.float32).reshape(-1)
+
+    def flush(self):
+        return np.asarray(self.session.flush(), np.float32).reshape(-1) if self.session else np.zeros(0, np.float32)
+
+
+class ReproHandler:
+    """aivoice paper reproductions (research_reproductions): trained checkpoints only."""
+
+    def load(self, req):
+        from aivoice.research_reproductions import registry
+
+        self.engine = registry.get(req["engine"]).load_streaming(req["checkpoint"], device=req.get("device", "cpu"),
+                                                                 teacher_dirs=req.get("teacher_dirs") or {})
+        self.sample_rate = int(self.engine.sample_rate)
+        self.key = req["engine"]
+        return {"sample_rate": self.sample_rate, "lookahead_samples": int(self.engine.lookahead_samples),
+                "weights": self.engine.meta.get("weights_label"), "model_name": self.engine.meta.get("model_name")}
+
+    def prepare(self, req):
+        import librosa
+
+        ref, _ = librosa.load(req["reference"], sr=self.sample_rate)
+        e = self.engine
+        if self.key == "rtvc":
+            own = req.get("source_reference")
+            src = librosa.load(own, sr=self.sample_rate)[0] if own else None
+            self.target = e.enroll(ref, source_16k=src)
+        elif self.key.startswith("tvtsyn"):
+            raise RuntimeError("TVTSyn enrollment needs x-vector + ECAPA teachers in the worker; pass "
+                               "precomputed embeddings with --target-embedding (not implemented in the live path yet)")
+        else:
+            self.target = e.enroll(ref, req.get("cache_dir"))
+        return {}
+
+    def start(self, req):
+        self.session = self.engine.new_session(self.target)
+        return {}
+
+    def chunk(self, x):
+        return np.asarray(self.session.push(x), np.float32)
+
+    def flush(self):
+        return np.zeros(0, np.float32)
+
+
 HANDLERS = {"echo": EchoHandler, "xvc": XVCHandler, "meanvc2": MeanVC2Handler, "rvc": RVCHandler,
-            "stylestream": StyleStreamHandler, "streamvoiceanon": StreamVoiceAnonHandler}
+            "stylestream": StyleStreamHandler, "streamvoiceanon": StreamVoiceAnonHandler, "vossa": VossaHandler,
+            "repro": ReproHandler}
 
 
 def main(argv):

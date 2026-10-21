@@ -74,9 +74,31 @@ class Reproduction:
         return st
 
 
+def apply_overrides(cfg: Any, overrides: dict[str, Any] | None) -> Any:
+    """Set dotted keys (``decoder.ch=256``). Values should already be parsed (CLI parses them as JSON)."""
+    for dotted, value in (overrides or {}).items():
+        if dotted == "variant":
+            continue
+        obj = cfg
+        parts = dotted.split(".")
+        for p in parts[:-1]:
+            obj = getattr(obj, p)
+        if not hasattr(obj, parts[-1]):
+            raise KeyError(f"unknown config key {dotted!r}")
+        old = getattr(obj, parts[-1])
+        if isinstance(old, tuple) and isinstance(value, list):
+            value = tuple(value)
+        elif isinstance(old, bool) and not isinstance(value, bool):
+            raise TypeError(f"{dotted} expects true/false")
+        elif isinstance(old, (int, float)) and not isinstance(old, bool):
+            value = type(old)(value)
+        setattr(obj, parts[-1], value)
+    return cfg
+
+
 def to_dict(cfg: Any) -> dict[str, Any]:
     return asdict(cfg) if is_dataclass(cfg) else dict(cfg)
 
 
-__all__ = ["ARCH_READY", "BLOCKED", "CHECKPOINT", "FAILED", "NOT_PREPARED", "READY", "Reproduction", "TRAINING",
+__all__ = ["ARCH_READY", "apply_overrides", "BLOCKED", "CHECKPOINT", "FAILED", "NOT_PREPARED", "READY", "Reproduction", "TRAINING",
            "to_dict"]

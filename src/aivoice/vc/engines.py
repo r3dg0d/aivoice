@@ -45,6 +45,7 @@ PINS = {
     "stylestream": ("https://github.com/Berkeley-Speech-Group/StyleStream", "38dd18cf6fc5d31e17189d86bb01f302829ba3c9"),
     "streamvoiceanon": ("https://github.com/Plachtaa/StreamVoiceAnon", "201705182c045298225071481e7cd59d537e935e"),
     "rtvc": ("https://github.com/Berkeley-Speech-Group/RT-VC", "9d9a55d0fb6cd53ebba108a0bab3380b1fc3c066"),
+    "vossa": ("https://github.com/Morris88826/VOSSA", "5dd1a5c51a1da531b0d127ff48aea007cc96ed34"),
 }
 
 
@@ -63,7 +64,7 @@ def _cfg(engine: str, key: str, default: Any = None) -> Any:
 
 def vendor(engine: str) -> Path:
     return Path(_cfg(engine, "repo_dir") or cache_home() / "vendor" / {"xvc": "X-VC", "stylestream": "StyleStream",
-                                                                          "streamvoiceanon": "StreamVoiceAnon"}.get(engine, engine))
+                                                                          "streamvoiceanon": "StreamVoiceAnon", "vossa": "VOSSA"}.get(engine, engine))
 
 
 def _python_has(python: str, *modules: str) -> str | None:
@@ -534,6 +535,109 @@ class StreamVoiceAnonEngine(WorkerVCEngine):
     chunk_timeout_s = 10.0
 
 
+class VossaEngine(WorkerVCEngine):
+    name = "vossa"
+    handler = "vossa"
+    modules = ("torch", "torchaudio", "einops", "soxr", "pytorch_lightning", "librosa")
+
+    def capabilities(self) -> VCCapabilities:
+        chunk = int(_cfg("vossa", "chunk_frames", 3))
+        la = int(_cfg("vossa", "lookahead", 4))
+        return VCCapabilities(
+            name="vossa", display_name="VOSSA (official, experimental)", task=TASK_VC, zero_shot=True,
+            requires_reference=True, sample_rate=16000, chunk_ms=20.0 * chunk, lookahead_ms=20.0 * la,
+            algorithmic_latency_ms=20.0 * (chunk + la), devices=("cuda", "cpu"),
+            license="CC BY-NC 4.0 (code and checkpoints): non-commercial use only",
+            code=f"{PINS['vossa'][0]} @ {PINS['vossa'][1][:7]} src/streaming (VossaStreamer)",
+            weights="morris88826/VOSSA (official)", paper="Interspeech 2026, doi:10.21437/Interspeech.2026-2763",
+            evidence="official-implementation",
+            install="clone the repo, `hf download morris88826/VOSSA --local-dir checkpoints`, set AIVOICE_VOSSA_PYTHON "
+                    "(Python 3.10, torch 2.8, requirements.txt)",
+            notes="Official code and weights. The paper reports RTF ~0.25 and ~73 ms end-to-end latency. The encoder "
+                  "looks 4 frames ahead per layer; the official streamer windows only those 4 frames (approximation "
+                  "of the offline model). AIVOICE_VOSSA_LOOKAHEAD=0 is the README's zero-lookahead setting.")
+
+    def _ready_state(self) -> EngineState:
+        return EngineState.EXPERIMENTAL
+
+    def _files(self) -> dict[str, Path | None]:
+        d = Path(_cfg("vossa", "checkpoint_dir") or vendor("vossa") / "checkpoints")
+        return {"VOSSA checkpoint": next(iter(sorted(d.glob("vossa_*.ckpt"))), None) if d.exists() else None,
+                "mimivocoder.ckpt": d / "mimivocoder.ckpt"}
+
+    def _load_request(self) -> dict[str, Any]:
+        la = _cfg("vossa", "lookahead", None)
+        return {"device": self.device, "repo_dir": str(vendor("vossa")),
+                "checkpoint_dir": str(_cfg("vossa", "checkpoint_dir") or vendor("vossa") / "checkpoints"),
+                "chunk_frames": int(_cfg("vossa", "chunk_frames", 3)), "lookahead": None if la is None else int(la),
+                "trust_pickle": bool(_cfg("vossa", "trust_pickle", False))}
+
+
+class ReproVCEngine(WorkerVCEngine):
+    """A paper reproduction trained with `aivoice reproduce`; startable only with a trained checkpoint."""
+
+    handler = "repro"
+    modules = ("torch", "numpy", "librosa")
+    chunk_timeout_s = 5.0
+
+    def __init__(self, key: str, **kw: Any) -> None:
+        kw.setdefault("python", sys.executable)
+        self.name = key
+        super().__init__(**kw)
+        self.device = kw.get("device") or _cfg(key.replace("-", "_"), "device", "cpu")
+
+    def capabilities(self) -> VCCapabilities:
+        from ..research_reproductions import registry
+
+        r = registry.get(self.name)
+        info = r.info
+        la_ms = 1000 * info.lookahead_samples / info.sample_rate
+        if self.name == "tvtsyn-aivoice":
+            la_ms = 80.0
+        frame_ms = 1000 * info.hop_samples / info.sample_rate
+        return VCCapabilities(
+            name=self.name, display_name=f"{info.title.split(':')[0]} ({registry.PROVENANCE[self.name].value}, experimental)",
+            task=TASK_VC, zero_shot=True, sample_rate=info.sample_rate, chunk_ms=frame_ms, lookahead_ms=la_ms,
+            algorithmic_latency_ms=frame_ms + la_ms, devices=("cpu", "cuda"),
+            license=f"aivoice code {info.code_license}; weights: trained by you (data licenses apply); "
+                    f"official code: {info.official_license or 'none'}",
+            code=f"aivoice research_reproductions ({info.source_status.value})",
+            weights=f"{info.model_name} (NOT official)", paper=info.paper_key, evidence="unvalidated",
+            install=f"aivoice reproduce train {self.name} ... then copy the exported checkpoint to "
+                    f"{registry.repro_home() / self.name / 'model.pt'} (or set AIVOICE_"
+                    f"{self.name.upper().replace('-', '_')}_CHECKPOINT)",
+            notes=f"{info.source_status.value}, architecture confidence {info.arch_confidence.value}. Never chosen by "
+                  "auto. Random-init or stand-in checkpoints are refused.")
+
+    def status(self) -> EngineStatusVC:
+        from ..research_reproductions import registry
+        from ..research_reproductions.common.checkpoint import is_usable_for_inference, read_meta
+
+        caps = self.capabilities()
+        ck = registry.checkpoint_for(self.name)
+        if ck is None:
+            return EngineStatusVC(self.name, EngineState.MISSING_WEIGHTS, caps,
+                                  "no trained checkpoint (none exist publicly; train one with `aivoice reproduce`)")
+        try:
+            ok, why = is_usable_for_inference(read_meta(ck))
+        except Exception as e:  # noqa: BLE001
+            return EngineStatusVC(self.name, EngineState.MISSING_WEIGHTS, caps, f"{ck}: {e}")
+        if not ok:
+            return EngineStatusVC(self.name, EngineState.MISSING_WEIGHTS, caps, f"{ck}: {why}")
+        return EngineStatusVC(self.name, EngineState.EXPERIMENTAL, caps, f"{ck}: {why}")
+
+    def _load_request(self) -> dict[str, Any]:
+        from ..research_reproductions import registry
+
+        return {"engine": self.name, "checkpoint": str(registry.checkpoint_for(self.name)), "device": self.device}
+
+
+def repro_engines() -> list[str]:
+    from ..research_reproductions import registry
+
+    return [k for k in registry.ENTRIES if k not in ("vossa-repro",)]
+
+
 # =============================================================================
 # investigated, not runnable
 # =============================================================================
@@ -557,38 +661,14 @@ class CatalogOnlyEngine:
 
 
 def catalog_only() -> list[CatalogOnlyEngine]:
-    return [
-        CatalogOnlyEngine(VCCapabilities(
-            name="rtvc", display_name="RT-VC (articulatory coding + DDSP)", zero_shot=True, sample_rate=16000,
-            devices=("cpu", "cuda"), license="none: the repository has no LICENSE file (all rights reserved by default)",
-            code=f"{PINS['rtvc'][0]} @ {PINS['rtvc'][1][:7]}: model definitions + offline infer_utils.py only",
-            weights="none published", paper="ACL 2025 System Demonstrations (2025.acl-demo.37); arXiv:2506.10289",
-            evidence="peer-reviewed (demo track); official partial code",
-            notes="Articulatory (EMA) inversion + causal pitch tracker + WavLM-conv speaker encoder + DDSP vocoder; the "
-                  "paper reports 61.4 ms CPU latency. The repo has no checkpoints, no streaming loop and no license."),
-            EngineState.BLOCKED_CODE, "no weights, no streaming code and no license in the official repository"),
-        CatalogOnlyEngine(VCCapabilities(
-            name="zerovc", display_name="Zero-VC (zero-lookahead streaming VC)", zero_shot=True, lookahead_ms=0.0,
-            license="n/a", code="none found (demo page amphionteam.github.io/Zero-VC-demo only)", weights="none found",
-            paper="arXiv:2606.20218", evidence="arXiv preprint",
-            notes="Strictly causal: distilled streaming w2v-BERT 2.0 content encoder, timbre encoder, causal decoder; "
-                  "speaker anonymisation as training-time perturbation; 20 ms frames."),
-            EngineState.RESEARCH_ONLY, "no public code or weights found"),
-        CatalogOnlyEngine(VCCapabilities(
-            name="tvtsyn", display_name="TVTSyn (time-varying timbre streaming VC)", zero_shot=True,
-            license="CC BY-NC 4.0 (code and weights, per huggingface.co/warisqr007/TVTSyn as indexed by search)",
-            code="no GitHub repository found; Hugging Face page not reachable from this environment",
-            weights="huggingface.co/warisqr007/TVTSyn (not inspected)", paper="arXiv:2602.09389 (ICLR 2026)",
-            evidence="peer-reviewed (ICLR 2026)",
-            notes="Global Timbre Memory + content-synchronous time-varying timbre; reports < 80 ms GPU latency. "
-                  "Non-commercial license; could not be inspected or run here."),
-            EngineState.RESEARCH_ONLY, "release could not be inspected from this environment (non-commercial license)"),
-    ]
-
+    """Investigated architectures that cannot run at all. RT-VC, Zero-VC and TVTSyn moved to `ReproVCEngine`
+    (0.7): they are runnable once you train them with `aivoice reproduce`; VOSSA has an official release."""
+    return []
 
 ENGINES = {
     "dsp": DspEngine, "passthrough": PassthroughEngine, "xvc": XVCEngine, "meanvc2": MeanVC2StreamEngine,
     "rvc": RVCStreamEngine, "stylestream": StyleStreamEngine, "streamvoiceanon": StreamVoiceAnonEngine,
+    "vossa": VossaEngine,
 }
 
 
@@ -597,10 +677,20 @@ def get_vc_engine(name: str, **kw: Any):
     key = {"xvc": "xvc", "meanvc": "meanvc2", "rvcv2": "rvc", "svanon": "streamvoiceanon"}.get(key, key)
     if key in ENGINES:
         return ENGINES[key](**kw)
+    from ..research_reproductions import registry
+
+    try:
+        rk = registry.resolve(name)
+    except KeyError:
+        rk = None
+    if rk == "vossa-repro":
+        return VossaEngine(**kw)
+    if rk is not None:
+        return ReproVCEngine(rk, **kw)
     for c in catalog_only():
         if c.name == key:
             return c
-    raise VCError(f"unknown VC engine {name!r}; known: {', '.join(list(ENGINES) + [c.name for c in catalog_only()])}")
+    raise VCError(f"unknown VC engine {name!r}; known: {', '.join(list(ENGINES) + repro_engines())}")
 
 
 def all_vc_status() -> list[EngineStatusVC]:
@@ -612,10 +702,16 @@ def all_vc_status() -> list[EngineStatusVC]:
             eng = ENGINES[name]
             out.append(EngineStatusVC(name, EngineState.MISSING_RUNTIME, eng().capabilities() if name in ("dsp", "passthrough") else
                                       VCCapabilities(name=name, display_name=name), f"{type(e).__name__}: {e}"))
+    for key in repro_engines():
+        try:
+            out.append(ReproVCEngine(key).status())
+        except Exception as e:  # noqa: BLE001
+            out.append(EngineStatusVC(key, EngineState.MISSING_WEIGHTS, VCCapabilities(name=key, display_name=key),
+                                      f"{type(e).__name__}: {e}"))
     out += [c.status() for c in catalog_only()]
     return out
 
 
-__all__ = ["ENGINES", "PINS", "CatalogOnlyEngine", "DspEngine", "EchoWorkerEngine", "MeanVC2StreamEngine", "PassthroughEngine",
+__all__ = ["ENGINES", "PINS", "CatalogOnlyEngine", "ReproVCEngine", "VossaEngine", "repro_engines", "DspEngine", "EchoWorkerEngine", "MeanVC2StreamEngine", "PassthroughEngine",
            "RVCStreamEngine", "StreamVoiceAnonEngine", "StyleStreamEngine", "WorkerVCEngine", "XVCEngine", "all_vc_status",
            "catalog_only", "get_vc_engine", "vendor"]

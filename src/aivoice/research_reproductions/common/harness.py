@@ -78,7 +78,9 @@ def first_difference(a: np.ndarray, b: np.ndarray, atol: float = 0.0) -> int | N
 
 
 def causality(model: StreamingModel, target: Any, seconds: float = 8.0, split_s: float = 5.0,
-              chunk_ms: float = 20.0) -> dict[str, Any]:
+              chunk_ms: float = 20.0, offline_atol: float = 1e-6) -> dict[str, Any]:
+    """Streaming must be bit-exact before the split. The offline path may differ by float rounding when it
+    uses whole-signal FFT convolutions (rounding depends on the whole buffer), hence ``offline_atol``."""
     sr = model.sample_rate
     x1 = test_signal(sr, seconds, 0)
     x2 = x1.copy()
@@ -92,12 +94,17 @@ def causality(model: StreamingModel, target: Any, seconds: float = 8.0, split_s:
     must_match = split - model.lookahead_samples
     d_stream = first_difference(y1, y2)
     o1, o2 = model.offline(x1, target), model.offline(x2, target)
-    d_off = first_difference(o1, o2)
+    d_off = first_difference(o1, o2, offline_atol)
+    n_pre = max(0, must_match)
+    pre_err = float(np.max(np.abs(o1[:n_pre] - o2[:n_pre]))) if n_pre else 0.0
     ok_stream = d_stream is None or d_stream >= must_match
     ok_off = d_off is None or d_off >= must_match
-    diverges = d_stream is not None  # the inputs differ, so a working model must eventually differ
+    # the inputs differ, so a model whose output depends on its input must differ (stream and offline);
+    # this also catches vacuous passes (e.g. a collapsed codebook mapping everything to one code)
+    diverges = d_stream is not None and d_off is not None
     return {"test": "causality", "passed": bool(ok_stream and ok_off and diverges), "split_sample": split,
             "lookahead_samples": model.lookahead_samples, "first_diff_stream": d_stream, "first_diff_offline": d_off,
+            "offline_max_abs_diff_before_split": pre_err, "offline_atol": offline_atol,
             "outputs_diverge_after_split": diverges, "emitted_samples": int(sum(l1)),
             "append_only": True, "chunk_ms": chunk_ms}
 

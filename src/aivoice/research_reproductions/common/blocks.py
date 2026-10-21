@@ -100,10 +100,47 @@ class CausalSEANetEncoder(nn.Module):
         return self.net.step(wav, state)
 
 
+class CausalSEANetDecoder(nn.Module):
+    """Features [B, dim, T] -> waveform [B, 1, T * prod(ratios)] (SEANet/EnCodec decoder layout, causal)."""
+
+    def __init__(self, dim: int = 512, n_filters: int = 64, ratios: tuple[int, ...] = (8, 5, 4, 2),
+                 n_residual: int = 1, kernel: int = 7, last_kernel: int = 7) -> None:
+        super().__init__()
+        self.hop = int(torch.tensor(ratios).prod())
+        ch = n_filters * 2 ** len(ratios)
+        self.inp = CausalConv1d(dim, ch, kernel)
+        self.ups = nn.ModuleList()
+        self.res = nn.ModuleList()
+        for r in ratios:
+            self.ups.append(CausalConvTranspose1d(ch, ch // 2, 2 * r, r))
+            ch //= 2
+            self.res.append(StreamingSequential(*[ResidualUnit(ch, 3, 2 ** j) for j in range(n_residual)]))
+        self.out = CausalConv1d(ch, 1, last_kernel)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.inp(x)
+        for up, res in zip(self.ups, self.res):
+            x = res(up(F.elu(x)))
+        return self.out(F.elu(x))
+
+    def step(self, x: torch.Tensor, state: State | None) -> tuple[torch.Tensor, State]:
+        st = state or {"inp": None, "ups": [None] * len(self.ups), "res": [None] * len(self.res), "out": None}
+        x, s_in = self.inp.step(x, st["inp"])
+        su, sr = [], []
+        for up, res, a, b in zip(self.ups, self.res, st["ups"], st["res"]):
+            x, a = up.step(F.elu(x), a)
+            x, b = res.step(x, b)
+            su.append(a)
+            sr.append(b)
+        y, s_out = self.out.step(F.elu(x), st["out"])
+        return y, {"inp": s_in, "ups": su, "res": sr, "out": s_out}
+
+
 class ChannelsTransformer(nn.Module):
     """[B, C, T] wrapper around the streaming Transformer (input/output projections optional)."""
 
-    def __init__(self, dim_in: int, d_model: int, depth: int, heads: int, context: int, right_context: int = 0,
+    def __init__(self, dim_in: int, d_model: int, depth: int, heads: int, context: int,
+                 right_context: int | list[int] = 0,
                  dim_out: int | None = None, ff_mult: int = 4) -> None:
         super().__init__()
         self.inp = nn.Linear(dim_in, d_model) if dim_in != d_model else nn.Identity()
@@ -237,6 +274,6 @@ def set_grad_checkpoint(model: nn.Module, on: bool) -> int:
     return n
 
 
-__all__ = ["AttentionPooling", "CausalHiFiGAN", "CausalSEANetEncoder", "ChannelsTransformer", "MRFBlock", "Pointwise",
+__all__ = ["AttentionPooling", "CausalHiFiGAN", "CausalSEANetDecoder", "CausalSEANetEncoder", "ChannelsTransformer", "MRFBlock", "Pointwise",
            "ResidualUnit", "StreamingSequential", "param_count", "set_grad_checkpoint"]
 

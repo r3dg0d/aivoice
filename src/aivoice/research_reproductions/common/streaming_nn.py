@@ -225,11 +225,14 @@ class TransformerBlock(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, dim: int, depth: int, heads: int, context: int, right_context: int = 0, ff_mult: int = 4,
-                 layer_scale: float = 0.01) -> None:
+    def __init__(self, dim: int, depth: int, heads: int, context: int, right_context: int | list[int] = 0,
+                 ff_mult: int = 4, layer_scale: float = 0.01) -> None:
+        """``right_context`` may be one value for every layer or a list (one per layer); lookahead adds up."""
         super().__init__()
-        self.blocks = nn.ModuleList(TransformerBlock(dim, heads, context, right_context, ff_mult, layer_scale)
-                                    for _ in range(depth))
+        rcs = list(right_context) if isinstance(right_context, (list, tuple)) else [right_context] * depth
+        if len(rcs) != depth:
+            raise ValueError(f"right_context list has {len(rcs)} entries for {depth} layers")
+        self.blocks = nn.ModuleList(TransformerBlock(dim, heads, context, rc, ff_mult, layer_scale) for rc in rcs)
 
     @property
     def lookahead_frames(self) -> int:

@@ -19,18 +19,18 @@ class ZeroVCReproduction(Reproduction):
     presets = tuple(C.PRESETS)
 
     def config(self, preset: str = "paper", stage: str | None = None, overrides: dict[str, Any] | None = None):
+        from ..common.base import apply_overrides
+
         variant = (overrides or {}).get("variant", "A")
-        cfg = C.PRESETS[preset](variant, stage or "vc")
-        for k, v in (overrides or {}).items():
-            if k != "variant":
-                _set(cfg, k, v)
-        return cfg
+        return apply_overrides(C.PRESETS[preset](variant, stage or "vc"), overrides)
 
     def recipe(self, stage: str, config, manifest, **kw: Any):
         from .train.trainer import ZeroVCRecipe
 
         config.stage = stage
-        return ZeroVCRecipe(config, manifest, **kw)
+        return ZeroVCRecipe(config, manifest, **{k: v for k, v in kw.items() if k in (
+            "val_manifest", "content_checkpoint", "teacher_dirs", "cache_dir", "teacher_cache", "timbre_cache",
+            "datasets", "kmeans_centroids", "fixed_crops")})
 
     def prepare(self, config, dataset: str, out: str, **kw: Any) -> dict[str, Any]:
         from .train.preprocess import prepare
@@ -54,17 +54,6 @@ class ZeroVCReproduction(Reproduction):
         out.append({"name": "LibriTTS", "why": "training data (paper: LibriTTS, >= 4 s, 16 kHz)", "ok": None,
                     "hint": "pass --dataset libritts:/path/to/LibriTTS"})
         return out
-
-
-def _set(cfg: Any, dotted: str, value: Any) -> None:
-    obj = cfg
-    parts = dotted.split(".")
-    for p in parts[:-1]:
-        obj = getattr(obj, p)
-    if not hasattr(obj, parts[-1]):
-        raise KeyError(f"unknown config key {dotted!r}")
-    old = getattr(obj, parts[-1])
-    setattr(obj, parts[-1], type(old)(value) if old is not None and not isinstance(old, tuple) else value)
 
 
 REPRODUCTION = ZeroVCReproduction()
