@@ -25,11 +25,11 @@ class ContentConfig:
     context: int = 100                 # ASSUMPTION: 2 s attention window
     right_context: int = 0             # paper: zero lookahead
     # variant A: regression target
-    teacher: str = "facebook/w2v-bert-2.0"  # paper names "e.g., a distilled streaming w2v-bert-2.0"
+    # variant A teacher: facebook/w2v-bert-2.0 (paper: "e.g., a distilled streaming w2v-bert-2.0")
     teacher_layer: int = 16            # ASSUMPTION (layer not stated)
     teacher_dim: int = 1024
     # variant B: classification target
-    km_teacher: str = "facebook/hubert-base-ls960"
+    # variant B teacher: facebook/hubert-base-ls960
     km_layer: int = 9
     km_codes: int = 200
     out_dim: int = 512                 # feature dim handed to the decoder (projection of the student output)
@@ -43,6 +43,7 @@ class TimbreConfig:
     embed_dim: int = 256               # ASSUMPTION
     pool_hidden: int = 256             # ASSUMPTION
     reference_s: float = 3.0           # ASSUMPTION: timbre reference crop during training
+    pooling: str = "attention"         # paper (Eq. 1); "mean" = ABLATION: static mean pooling
 
 
 @dataclass
@@ -56,6 +57,7 @@ class DecoderConfig:
 @dataclass
 class AnonymizerConfig:
     kind: str = "mcadams"              # ASSUMPTION: paper uses an unnamed off-the-shelf SA module
+    #                                    "none" = ABLATION: train without anonymisation (paper's motivation test)
     alpha_range: tuple[float, float] = (0.7, 0.9)  # McAdams coefficient range (VoicePrivacy B2 uses 0.8)
     lpc_order: int = 20
 
@@ -73,7 +75,6 @@ class OptimConfig:                      # HiFi-GAN optimiser (ASSUMPTION: paper 
     betas: tuple[float, float] = (0.8, 0.99)
     weight_decay: float = 0.01
     lr_decay: float = 0.999            # per 1000 steps here (HiFi-GAN: per epoch)
-    grad_clip: float | None = None
 
 
 @dataclass

@@ -13,7 +13,12 @@ from typing import Any
 import numpy as np
 import torch
 
-from ...common.checkpoint import CheckpointError, is_usable_for_inference, load_checkpoint, load_model_state
+from ...common.checkpoint import (
+    CheckpointError,
+    is_usable_for_inference,
+    load_checkpoint,
+    load_model_state,
+)
 from ...common.teachers import load_teacher
 from ..config import HOP, SAMPLE_RATE, ZeroVCConfig, from_dict
 from ..info import INFO

@@ -15,8 +15,14 @@ import torch
 
 from ...common.data import Filters, load_audio, read_manifest
 from ...common.features import FeatureCache, FeatureSpec
-from ...common.prepare import (cache_codes, cache_teacher_features, ensure_manifest, learn_kmeans, teacher_spec,
-                               write_prepared)
+from ...common.prepare import (
+    cache_codes,
+    cache_teacher_features,
+    ensure_manifest,
+    learn_kmeans,
+    teacher_spec,
+    write_prepared,
+)
 from ...common.teachers import load_teacher, teacher_dir
 from ..config import SAMPLE_RATE, TVTSynConfig
 

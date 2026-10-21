@@ -75,8 +75,15 @@ class TimeVaryingTimbre(nn.Module):
         """x content [B, C, T], g [B, g_dim] -> (tv timbre [B, d_out, T], gate alpha [B, 1, T])."""
         H = F.normalize(self.post(self._attend(x, g, pos0)), dim=1)
         gg = self.spk(F.normalize(g, dim=-1))[:, None].expand(-1, x.shape[-1], -1)
-        alpha = self.gate(x)
-        tv = slerp(H.transpose(1, 2), gg, alpha.transpose(1, 2)).transpose(1, 2)
+        alpha = self.gate(x) if self.cfg.gate == "learned" else torch.full_like(x[:, :1], self.cfg.fixed_alpha)
+        a, b, t = H.transpose(1, 2), gg, alpha.transpose(1, 2)
+        if self.cfg.interp == "slerp":
+            tv = slerp(a, b, t)
+        elif self.cfg.interp == "lerp":  # ablation only
+            tv = F.normalize((1 - t) * F.normalize(a, dim=-1) + t * F.normalize(b, dim=-1), dim=-1)
+        else:
+            raise ValueError(f"timbre.interp must be slerp or lerp, got {self.cfg.interp!r}")
+        tv = tv.transpose(1, 2)
         return tv, alpha
 
     def step(self, x: torch.Tensor, g: torch.Tensor, state: State | None) -> tuple[torch.Tensor, State]:

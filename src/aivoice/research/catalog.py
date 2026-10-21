@@ -194,8 +194,10 @@ PAPERS: list[Paper] = [
         "github.com/Berkeley-Speech-Group/RT-VC @ 9d9a55d (inspected): model definitions and an offline notebook helper only",
         "none published",
         "no LICENSE file in the repository (all rights reserved by default)",
-        "blocked-weights",
-        "catalogue-only engine `rtvc` (BLOCKED_CODE): no checkpoints, no streaming loop, no license. Nothing is faked",
+        "adapted",
+        "0.7 reconstruction `rtvc` (PARTIAL_OFFICIAL_CODE, research_reproductions/rtvc): official layout re-implemented "
+        "without copying (parameter shapes verified identical), causal front-end, exact streaming state, full training "
+        "pipeline. No official weights; nothing trained here",
         "@inproceedings{liu2025rtvc, title={RT-VC: Real-Time Zero-Shot Voice Conversion with Speech Articulatory Coding}, author={Liu, Yisi and Wang, Chenyang and Kim, Hanjo and Khan, Raniya and Anumanchipalli, Gopala}, booktitle={Proceedings of ACL 2025: System Demonstrations}, year={2025}}",
     ),
     Paper(
@@ -208,8 +210,10 @@ PAPERS: list[Paper] = [
         "none found (demo page amphionteam.github.io/Zero-VC-demo only)",
         "none found",
         "n/a",
-        "blocked-weights",
-        "catalogue-only engine `zerovc` (RESEARCH_ONLY). Needed later: code + causal checkpoints + a license",
+        "experimental",
+        "0.7 paper reproduction `zerovc-repro` (PAPER_REPRODUCTION_WITH_ASSUMPTIONS, research_reproductions/zerovc): "
+        "content variants A (w2v-BERT 2.0 distillation) / B (HuBERT k-means, aivoice), WavLM-L7 attention pooling, causal "
+        "HiFi-GAN, training-only anonymiser. Nothing trained here",
         "@article{zerovc2026, title={Zero-VC: Zero-Lookahead Streaming Voice Conversion via Speaker Anonymization}, journal={arXiv preprint arXiv:2606.20218}, year={2026}}",
     ),
     Paper(
@@ -219,12 +223,12 @@ PAPERS: list[Paper] = [
         "https://arxiv.org/abs/2602.09389",
         "Global Timbre Memory + content-synchronous, gated time-varying timbre instead of one static speaker vector; "
         "factorised VQ bottleneck; reported < 80 ms GPU latency",
-        "no GitHub repository found; a Hugging Face page (warisqr007/TVTSyn) is indexed but was unreachable here",
+        "TVTSyn backbone + time-varying timbre in github.com/Morris88826/VOSSA @ 5dd1a5c (inspected, CC BY-NC 4.0)",
         "warisqr007/TVTSyn (not inspected)",
-        "CC BY-NC 4.0 per the indexed model page (non-commercial)",
-        "unverified",
-        "catalogue-only engine `tvtsyn`. Idea noted, not borrowed: static-vector vs time-varying timbre is an architectural "
-        "property of the trained model and cannot be bolted onto another engine",
+        "CC BY-NC 4.0 (code and weights)",
+        "faithfully-reproduced",
+        "0.7 paper reproduction `tvtsyn-repro` (+ variant `tvtsyn-aivoice`): encoder, factorised VQ and GTM/Slerp timbre "
+        "verified against the official code (identical parameter shapes); independent Apache-2.0 code. Nothing trained here",
         "@inproceedings{quamer2026tvtsyn, title={TVTSyn: Content-Synchronous Time-Varying Timbre for Streaming Voice Conversion and Anonymization}, author={Quamer, Waris and Tseng, Mu-Ruei and Nasrallah, Ghady and Gutierrez-Osuna, Ricardo}, booktitle={ICLR}, year={2026}}",
     ),
     Paper(
@@ -266,9 +270,25 @@ PAPERS: list[Paper] = [
         "described in the StreamVoiceAnon README; models marked 'coming soon' at commit 2017051",
         "not released at the inspected commit",
         "n/a",
-        "blocked-weights",
-        "not integrated: no released weights",
+        "experimental",
+        "0.7 fine-tuning extension `streamvoiceanon-plus` (FINETUNED_PUBLIC_BASE): SEP tokens + emotion2vec distillation "
+        "around the official dual-AR model from the user's checkout. Not trained here",
         "@misc{kuzmin2026streamvoiceanonplus, title={StreamVoiceAnon+: Emotion-Preserving Streaming Speaker Anonymization via Frame-Level Acoustic Distillation}, author={Kuzmin, Nikita and Lee, Kong Aik and Chng, Eng Siong}, year={2026}, eprint={2603.06079}, archivePrefix={arXiv}}",
+    ),
+    Paper(
+        "vossa",
+        "VOSSA: Voiceprint Optimization for Streaming Speech Architectures",
+        "Interspeech 2026 (Best Student Paper), pp. 4716-4720, doi:10.21437/Interspeech.2026-2763; arXiv 2609.38887",
+        "https://github.com/Morris88826/VOSSA",
+        "speaker embedding pooled (attentive statistics) from intermediate layers of the frozen TVTSyn streaming content "
+        "encoder, trained jointly with VC objectives; time-varying timbre; RTF ~0.25, ~73 ms reported",
+        "github.com/Morris88826/VOSSA @ 5dd1a5c (inspected: src/streaming VossaStreamer, configs)",
+        "morris88826/VOSSA (official checkpoints; Hub not reachable here)",
+        "CC BY-NC 4.0 (code and checkpoints)",
+        "directly-implemented",
+        "engine `vossa` (EXPERIMENTAL): official VossaStreamer in a worker; pickle checkpoints need explicit trust. Not run "
+        "here (no torchaudio-compatible env, no Hub)",
+        "@inproceedings{tseng26c_interspeech, title={VOSSA: Voiceprint Optimization for Streaming Speech Architectures}, author={Tseng, Mu-Ruei and Quamer, Waris and Nasrallah, Ghady and Gutierrez-Osuna, Ricardo}, booktitle={Interspeech 2026}, pages={4716--4720}, year={2026}, doi={10.21437/Interspeech.2026-2763}}",
     ),
     Paper(
         "rvc",

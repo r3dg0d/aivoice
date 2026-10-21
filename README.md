@@ -128,6 +128,32 @@ aivoice voices import-rvc model.zip --no-synthesize      # old behaviour: incomp
 
 The same applies to `aivoice voices install --search …` and `virtualmic --search …`: a downloaded model with no preview audio now becomes a usable voice. Re-importing a package upgrades an earlier *incomplete* entry instead of failing.
 
+## Official engines, paper reproductions and aivoice variants (0.7)
+
+aivoice keeps three kinds of streaming-VC engine apart and labels each one wherever it appears
+(`aivoice reproduce list`, `aivoice models info NAME`, the QuickShell **Research** tab):
+
+| kind | engines | what it means |
+|---|---|---|
+| **Official engines** | `xvc`, `meanvc2`, `stylestream`, `streamvoiceanon`, `vossa` (+ community `rvc`) | the authors' code and checkpoints, run in their own environment |
+| **Paper reproductions** | `rtvc`, `zerovc-repro`, `tvtsyn-repro`, `streamvoiceanon-plus` | aivoice code rebuilt from the paper (and official code where it exists); **you** train the weights; never called official |
+| **aivoice variants** | `tvtsyn-aivoice` | deliberate departures from a paper (here: 80 ms instead of 640 ms exact lookahead), named so they can't be mistaken for it |
+
+None of them is a default engine, and `--engine auto` never selects one. Weights trained with a
+reproduction are named `aivoice/<paper>-paper-repro-vX` and labelled RETRAINED_PAPER_REPRODUCTION.
+Untrained or test checkpoints are refused. Training has a mandatory tiny-overfit gate, exact resume,
+self-describing checkpoints, BF16/TF32/compile/DDP, OOM reports, local metrics with no telemetry, and a
+background service that the widget can pause or stop.
+
+```bash
+aivoice reproduce list | info NAME | paper-map NAME | verify NAME --official-checkout DIR
+aivoice reproduce prepare zerovc-repro --dataset libritts:/data/LibriTTS --output runs/z/prep --stage content --teacher w2v-bert-2.0=DIR
+aivoice reproduce train zerovc-repro --stage content --dataset runs/z/prep --output runs/z/content --device cuda --background
+aivoice reproduce status zerovc-repro --run runs/z/content
+```
+
+Docs: [reproductions](docs/reproductions/README.md) (scorecard, workflow, licenses) · per-paper SPEC.md (paper → module → decision → confidence)
+
 ## Live voice conversion and modulation (0.6)
 
 ```bash

@@ -46,3 +46,11 @@ IPC (`quickshell ipc -c aivoice call aivoice ...`): `show`, `open`, `toggle`, `t
   list`, `experimental status` and a live pipeline snapshot, switches through all three modes and fails on any QML
   warning. It caught four undefined-binding bugs and a missing-`~/.cache` bug in `run.sh` before release.
 - Not tested here: the real Quickshell runtime, fonts and the compositor window rules.
+
+## Research tab (0.7)
+
+Lists every paper reproduction with its provenance, state (Not prepared / Architecture ready / Training /
+Checkpoint available / Ready / Failed / Blocked) and, for the latest run, the step, loss, samples/s, ETA, GPU,
+VRAM and checkpoint. Pause, resume and stop write the run's `control.json`; the trainer saves a checkpoint first.
+The widget never trains. Start runs with `aivoice reproduce train ... --background`, and the tab picks up the
+latest run per engine (`~/.cache/aivoice/reproductions/runs.json`).

@@ -110,6 +110,10 @@ def test_widget_loads_and_binds_real_cli_output(tmp_path):
     (canned / "rt.out").write_text('{"engine": "rvc", "pitch": 0, "index_rate": 0.5, "rvc_model": "/m.pth", "rvc_index": null}')
     (canned / "inputs.out").write_text('[{"name": "alsa_input.usb", "desc": "USB Mic", "current": true}]')
     (canned / "level.out").write_text("0.2")
+    panel = json.loads(r.invoke(main, ["reproduce", "panel"]).output)
+    panel[1].update(state="Training", output="/tmp/run", run={"state": "training", "step": 120, "max_steps": 1000,
+                    "loss": {"mel": 1.2}, "samples_per_s": 3.5, "eta_s": 900, "gpu": "RTX 4090", "vram_gib": 9.1})
+    (canned / "repro.out").write_text(json.dumps(panel))
     out = subprocess.run([sys.executable, str(ROOT / "tests" / "qml_harness.py"), str(canned), str(WIDGET / "shell.qml")],
                          capture_output=True, text=True, timeout=90)
     lines = (out.stdout + out.stderr).splitlines()
@@ -117,4 +121,4 @@ def test_widget_loads_and_binds_real_cli_output(tmp_path):
     assert not warns, "\n".join(warns[:20])
     assert any(ln.startswith("PROPS") for ln in lines)
     cmds = {json.loads(ln.split(" ", 1)[1])[0] for ln in lines if ln.startswith("STUBCMD")}
-    assert {"vcengines", "vcstatus", "presets", "status", "s2sstatus"} <= cmds
+    assert {"vcengines", "vcstatus", "presets", "status", "s2sstatus", "repro"} <= cmds

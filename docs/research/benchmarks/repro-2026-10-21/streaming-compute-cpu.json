@@ -1,0 +1,48 @@
+{
+  "label": "MEASURED BY AIVOICE",
+  "weights": "RANDOM_INIT: compute cost of the architecture only, no quality",
+  "machine": {
+    "cpu": "x86_64",
+    "threads": 4,
+    "gpu": null,
+    "torch": "2.14.1+cu130"
+  },
+  "results": {
+    "zerovc-repro (paper, variant A)": {
+      "label": "MEASURED BY AIVOICE",
+      "chunk_ms": 20,
+      "rtf": 1.9942858216246577,
+      "chunk_p50_ms": 37.46731999990516,
+      "chunk_p95_ms": 51.72146689983492,
+      "algorithmic_lookahead_ms": 19.9375,
+      "params_M": 45.28
+    },
+    "rtvc (paper config)": {
+      "label": "MEASURED BY AIVOICE",
+      "chunk_ms": 20,
+      "rtf": 1.178995490124862,
+      "chunk_p50_ms": 22.318106000057014,
+      "chunk_p95_ms": 32.79532069982451,
+      "algorithmic_lookahead_ms": 4.9375,
+      "params_M": 12.46
+    },
+    "tvtsyn-repro (paper config)": {
+      "label": "MEASURED BY AIVOICE",
+      "chunk_ms": 20,
+      "rtf": 1.7919238471242238,
+      "chunk_p50_ms": 35.87533900008566,
+      "chunk_p95_ms": 46.530305199939896,
+      "algorithmic_lookahead_ms": 659.9375,
+      "params_M": 89.45
+    },
+    "tvtsyn-aivoice": {
+      "label": "MEASURED BY AIVOICE",
+      "chunk_ms": 20,
+      "rtf": 1.8985196743747679,
+      "chunk_p50_ms": 35.582383000019036,
+      "chunk_p95_ms": 48.504692699998486,
+      "algorithmic_lookahead_ms": 99.9375,
+      "params_M": 89.45
+    }
+  }
+}

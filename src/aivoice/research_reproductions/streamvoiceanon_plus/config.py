@@ -24,7 +24,7 @@ class PlusConfig:
     emo_dim: int = 768               # emotion2vec base/plus-base hidden size
     emo_frame_rate: float = 50.0     # emotion2vec frame rate
     emo_head_hidden: int = 512       # ASSUMPTION P-H1: 2-layer MLP distillation head
-    emo_layer: str = "last"          # Slow-AR hidden states used for distillation (final pre-norm output)
+    use_sep: bool = True             # False = ABLATION: prompt and source without boundary tokens
     prompt_frames: int = 64          # ASSUMPTION: neutral prompt crop (~3 s)
     source_frames: int = 128         # ASSUMPTION: emotional source crop (~6 s)
     lr: float = 1e-5                 # ASSUMPTION: fine-tuning lr (official from-scratch lr 1e-4)

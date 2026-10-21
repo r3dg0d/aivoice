@@ -19,7 +19,7 @@ class FrontEndConfig:
     n_fft: int = 1024    # VERIFIED (MFCC melkwargs / MelSpectrogram)
     n_mels: int = 128    # VERIFIED
     n_mfcc: int = 24     # VERIFIED (EMA inverter input)
-    causal: bool = True  # aivoice deviation R-F1: official helpers use a centred STFT (512-sample lookahead)
+    # always causal (deviation R-F1: the official helpers use a centred STFT, 512 samples of lookahead)
 
 
 @dataclass
@@ -41,7 +41,7 @@ class EMAConfig:
     hidden_dim: int = 256  # ASSUMPTION
     kernel_size: int = 3   # ASSUMPTION
     channels: int = 12     # VERIFIED (12 EMA channels)
-    teacher: str = "sparc"  # ASSUMPTION R-T1: SPARC articulatory inversion as pseudo-label teacher
+    # pseudo-label teacher: SPARC articulatory inversion (ASSUMPTION R-T1), see train/preprocess.py
 
 
 @dataclass
@@ -54,7 +54,7 @@ class SpeakerConfig:
     forward_expansion: int = 1
     n_midlayers: int = 1
     freeze_wavlm_cnn: bool = True  # ASSUMPTION
-    wavlm_cnn: str = "wavlm-large"  # VERIFIED (WavLMModel.from_pretrained("microsoft/wavlm-large").feature_extractor)
+    # CNN front of the speaker encoder: WavLM-large feature extractor (VERIFIED), teacher name "wavlm-large"
 
 
 @dataclass
@@ -74,7 +74,6 @@ class VocoderConfig:
 class LossConfig:
     fft_sizes: tuple[int, ...] = (2048, 1024, 512, 256, 128, 64)  # DDSP multi-scale spectral loss (ASSUMPTION sizes)
     mss: float = 1.0
-    mel: float = 0.0             # optional extra mel L1 (off: not in the DDSP recipe)
     pitch_bce: float = 1.0
     periodicity_bce: float = 1.0
     loudness_l1: float = 1.0

@@ -69,7 +69,7 @@ def learn_kmeans(cache: FeatureCache, ids: list[str], k: int, seed: int = 0, max
     c = km.cluster_centers_.astype(np.float32)
     if out is not None:
         np.save(out, c)
-        Path(str(out) + ".json").write_text(json.dumps({"k": k, "frames": int(len(X)), "seed": seed,
+        Path(str(out) + ".json").write_text(json.dumps({"k": k, "frames": len(X), "seed": seed,
                                                         "source_cache": str(cache.dir), "inertia": float(km.inertia_)},
                                                        indent=2) + "\n")
     return c
@@ -84,7 +84,7 @@ def assign_codes(feats: np.ndarray, centroids: np.ndarray) -> np.ndarray:
 def cache_codes(src: FeatureCache, ids: list[str], centroids: np.ndarray, cache_root: Path, name: str) -> FeatureCache:
     spec = FeatureSpec(name=name, extractor_version="1", source_model=src.spec.source_model,
                        source_revision=src.spec.source_revision, sample_rate=16000, hop=320, dim=None, dtype="int16",
-                       config={"from": src.spec.key(), "k": int(len(centroids)),
+                       config={"from": src.spec.key(), "k": len(centroids),
                                "centroids_sha": hashlib.sha256(centroids.tobytes()).hexdigest()[:16]})
     out = FeatureCache(cache_root, spec)
     out.fill(((i, i) for i in ids), lambda i: assign_codes(src.get(i), centroids))

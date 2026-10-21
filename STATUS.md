@@ -1,4 +1,43 @@
-# STATUS — aivoice 0.6.0
+# STATUS — aivoice 0.7.0
+
+## Paper reproductions (0.7.0): honest state
+
+The build environment had **no GPU**, no Hugging Face / arXiv access (so no teacher models, no datasets, no
+official checkpoints), and torch 2.14 with no compatible torchaudio. Consequently **nothing was trained**, and
+there are no reproduced weights and no quality numbers.
+
+**Verified here (MEASURED BY AIVOICE):**
+- Every streaming layer (causal conv, causal transposed conv, windowed MHSA with KV cache / RoPE offset, SEANet
+  encoder/decoder, causal HiFi-GAN, DDSP oscillator/noise/reverb) equals its offline forward for arbitrary chunkings
+  (≤ 2e-5). Caches stay bounded.
+- Zero-VC, RT-VC and TVTSyn (tiny random networks) pass causality (inputs identical for 5 s), state reset and
+  20/40/80 ms + irregular chunk invariance. A Zero-VC long-session run kept its state bounded.
+- **Official parity:** RT-VC pitch tracker / EMA inverter / DDSP vocoder, and TVTSyn's time-varying timbre +
+  factorised VQ, have parameter shapes identical to the official classes (imported from the official checkouts).
+  StreamVoiceAnon+ runs against the official dual-AR classes.
+- **Tiny-overfit gate** (CPU, synthetic espeak data, stand-in teachers): Zero-VC content A 0.04×, content B 0.02×,
+  vc 0.49× (300 steps); RT-VC pitch 0.08×, EMA 0.09×, vocoder paper-size 0.48× (500 steps). **RT-VC tiny vocoder
+  fails: 0.53× after 1500 steps**, so the tiny config is too small for its gate. TVTSyn content 0.07× (200 steps),
+  synth mel 0.29× at step 230 (stopped by hand at 230/300; already below the 0.5 threshold).
+- Exact resume (bit-identical weights after interruption), checksum / fingerprint / shape checks, background
+  pause / stop / resume, OOM report path (code only; no GPU to trigger it).
+- CPU streaming compute at paper size with random weights (4 threads, eager): RT-VC RTF 1.18, TVTSyn 1.79,
+  Zero-VC 1.99. **None is real time on this CPU.** Zero-VC's paper reports RTF 0.063 on a Xeon, so aivoice's
+  assumed content student (29 M params) is likely far larger than the paper's.
+
+**Findings worth knowing:**
+- The official TVTSyn/VOSSA encoder has 4 frames of right context in every layer (640 ms stacked), and its
+  streamer approximates that with a 4-frame window. `tvtsyn-repro` is exact at 640 ms; `tvtsyn-aivoice` is
+  exact at 80 ms but is not the paper configuration.
+- The official conditional LayerNorm (GroupNorm(1, C)) normalises over time; aivoice uses per-frame LN.
+- The official RT-VC helpers use a centred STFT (32 ms lookahead); aivoice trains with a causal one.
+
+**Not done / not possible here:** training any model; quality, source-leakage and F0 evaluation of trained
+models; comparison against X-VC / RVC / MeanVC2; DDP and `--compile` on a GPU; a 2-hour session; StreamVoiceAnon+
+data preparation (needs the official encoders on CUDA); live TVTSyn enrollment and the StreamVoiceAnon+ SEP
+prefill hook; running VOSSA. The masculinisation research path was not run (it needs trained conversion models),
+so the production masculine mode is **unchanged**, and no latent direction is called "masculinity".
+
 
 Honest limitations (as of 2026-10-21). The 0.6 build environment had **no GPU, no sound devices, and no access to
 huggingface.co / arxiv.org / ModelScope** (GitHub and PyPI were reachable). Everything below says which of those

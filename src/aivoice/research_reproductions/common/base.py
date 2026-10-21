@@ -7,7 +7,6 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
 
-from .checkpoint import is_usable_for_inference, read_meta
 from .provenance import ReproductionInfo, SourceStatus
 
 # Panel / CLI states
@@ -47,13 +46,16 @@ class Reproduction:
         return p.read_text() if p.exists() else "(no SPEC.md)"
 
     def status(self, run_dir: str | Path | None = None) -> dict[str, Any]:
+        from .checkpoint import is_usable_for_inference, read_meta
+
         info = self.info
         st: dict[str, Any] = {"engine": info.key, "source_status": info.source_status.value,
                               "arch_confidence": info.arch_confidence.value}
         if info.source_status == SourceStatus.BLOCKED:
             return {**st, "state": BLOCKED, "why": info.blocked_by}
         if run_dir is None:
-            return {**st, "state": ARCH_READY, "why": "architecture implemented; no training run given"}
+            return {**st, "state": ARCH_READY, "weights": "UNTRAINED",
+                    "why": "architecture implemented; UNTRAINED (no training run given)"}
         run = Path(run_dir)
         status_file = run / "status.json"
         live = json.loads(status_file.read_text()) if status_file.exists() else {}
@@ -71,9 +73,9 @@ class Reproduction:
                 ok, why = False, f"{why}; stage `{stage}` checkpoint (not a complete conversion model yet)"
             st.update(state=READY if ok else CHECKPOINT, checkpoint=str(ckpts[-1]), weights=why, step=meta.get("step"))
         elif not (run / "prepared.json").exists():
-            st["state"] = NOT_PREPARED
+            st.update(state=NOT_PREPARED, weights="UNTRAINED")
         else:
-            st["state"] = ARCH_READY
+            st.update(state=ARCH_READY, weights="UNTRAINED")
         return st
 
 
@@ -103,5 +105,15 @@ def to_dict(cfg: Any) -> dict[str, Any]:
     return asdict(cfg) if is_dataclass(cfg) else dict(cfg)
 
 
-__all__ = ["ARCH_READY", "apply_overrides", "BLOCKED", "CHECKPOINT", "FAILED", "NOT_PREPARED", "READY", "Reproduction", "TRAINING",
-           "to_dict"]
+__all__ = [
+    "ARCH_READY",
+    "BLOCKED",
+    "CHECKPOINT",
+    "FAILED",
+    "NOT_PREPARED",
+    "READY",
+    "TRAINING",
+    "Reproduction",
+    "apply_overrides",
+    "to_dict",
+]

@@ -12,8 +12,14 @@ from typing import Any
 
 from ...common.data import Filters, read_manifest
 from ...common.features import FeatureCache
-from ...common.prepare import (cache_codes, cache_teacher_features, ensure_manifest, learn_kmeans, teacher_spec,
-                               write_prepared)
+from ...common.prepare import (
+    cache_codes,
+    cache_teacher_features,
+    ensure_manifest,
+    learn_kmeans,
+    teacher_spec,
+    write_prepared,
+)
 from ...common.teachers import load_teacher
 from ..config import ZeroVCConfig
 

@@ -137,7 +137,7 @@ def chunk_invariance(model: StreamingModel, target: Any, seconds: float = 4.0,
         n = min(len(y), len(ref))
         err = float(np.max(np.abs(y[:n] - ref[:n]))) if n else float("inf")
         good = err <= atol and n >= len(ref) - model.lookahead_samples - int(0.1 * sr)
-        res["runs"][name] = {"max_abs_err_vs_offline": err, "samples": int(len(y)), "offline_samples": int(len(ref)),
+        res["runs"][name] = {"max_abs_err_vs_offline": err, "samples": len(y), "offline_samples": len(ref),
                              "passed": bool(good)}
         ok &= good
     res["passed"] = bool(ok)

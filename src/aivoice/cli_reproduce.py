@@ -184,7 +184,7 @@ def repro_prepare(name, dataset, output, stage, config, sets, teachers, device, 
                          features=not no_features)
     except NotImplementedError as e:
         raise _fail(e) from e
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise _fail(e) from e
     _echo_json(info)
 
@@ -405,7 +405,11 @@ def repro_evaluate(name, checkpoint, untrained_preset, source, target, long_minu
     """Streaming harness + compute (+ conversion metrics with --source/--target). All MEASURED BY AIVOICE."""
     import numpy as np
 
-    from .research_reproductions.common.evaluate import compute_report, conversion_metrics, streaming_report
+    from .research_reproductions.common.evaluate import (
+        compute_report,
+        conversion_metrics,
+        streaming_report,
+    )
 
     key, r = _repro(name)
     if bool(checkpoint) == bool(untrained_preset):
@@ -416,7 +420,7 @@ def repro_evaluate(name, checkpoint, untrained_preset, source, target, long_minu
     else:
         try:
             model = r.load_streaming(checkpoint, device=device, teacher_dirs=_teachers(teachers))
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             raise _fail(e) from e
         rep = {"engine": key, "checkpoint": checkpoint, "weights": model.meta.get("weights_label"),
                "model_name": model.meta.get("model_name")}
@@ -450,7 +454,10 @@ def _untrained(key: str, r, preset: str, device: str):
 
         return ZeroVCStreaming.untrained(cfg, device), torch.randn(1, cfg.timbre.embed_dim)
     if key == "rtvc":
-        from .research_reproductions.rtvc.streaming.inference import RTVCStreaming, Target
+        from .research_reproductions.rtvc.streaming.inference import (
+            RTVCStreaming,
+            Target,
+        )
 
         return RTVCStreaming.untrained(cfg, device), Target(torch.randn(1, cfg.speaker.spkr_emb_dim), 1.0)
     if key.startswith("tvtsyn"):
@@ -475,7 +482,12 @@ def repro_export(name, checkpoint, pitch, ema, vocoder, output, install):
     import shutil
 
     from .research_reproductions import registry
-    from .research_reproductions.common.checkpoint import CheckpointMeta, load_checkpoint, read_meta, save_checkpoint
+    from .research_reproductions.common.checkpoint import (
+        CheckpointMeta,
+        load_checkpoint,
+        read_meta,
+        save_checkpoint,
+    )
 
     key, r = _repro(name)
     try:
@@ -499,10 +511,10 @@ def repro_export(name, checkpoint, pitch, ema, vocoder, output, install):
                     super().__init__()
                     self._sd = sd
 
-                def state_dict(self, *a, **k):  # noqa: ARG002
+                def state_dict(self, *a, **k):
                     return self._sd
 
-                def parameters(self, recurse=True):  # noqa: ARG002
+                def parameters(self, recurse=True):
                     return iter(())
 
             models = {}
@@ -518,7 +530,7 @@ def repro_export(name, checkpoint, pitch, ema, vocoder, output, install):
             path = save_checkpoint(output, m, models)
     except click.ClickException:
         raise
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise _fail(e) from e
     out = {"exported": str(path), "meta": {k: v for k, v in read_meta(path).items() if k in (
         "engine", "model_name", "weights_status", "weights_label", "step", "redistributable")}}

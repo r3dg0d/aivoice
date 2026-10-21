@@ -36,8 +36,22 @@ class SparcTeacher:
         except ImportError as e:
             raise RuntimeError("SPARC is not installed: pip install speech-articulatory-coding "
                                "(the EMA pseudo-label teacher; training only)") from e
-        self.model = load_model("en", device=device, ckpt=directory) if directory else load_model("en", device=device)
-        self.revision = str(directory)
+        # speech-articulatory-coding 0.1.0: load_model(model_name | config=YAML, ckpt=CKPT, device=...). With no
+        # directory it would download from the Hugging Face Hub, which aivoice does not do implicitly.
+        if not directory:
+            raise RuntimeError("SPARC checkpoint not configured: download the English model (config .yaml + .ckpt) "
+                               "yourself and pass --teacher sparc=DIR")
+        from pathlib import Path as _P
+
+        d = _P(directory)
+        cfg = next(iter(sorted(d.glob("*.yaml"))), None)
+        ckpt = next(iter(sorted(d.glob("*.ckpt"))), None)
+        if cfg is None or ckpt is None:
+            raise RuntimeError(f"{d}: expected a SPARC *.yaml config and *.ckpt checkpoint")
+        self.model = load_model(config=str(cfg), ckpt=str(ckpt), device=device)
+        from ...common.features import file_sha256
+
+        self.revision = file_sha256(ckpt)
 
     def __call__(self, wav: np.ndarray) -> np.ndarray:
         code = self.model.encode(wav)

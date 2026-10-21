@@ -43,6 +43,7 @@ ShellRoot {
     readonly property var mainEngines: ["auto", "xvc", "rvc", "meanvc2"]
     readonly property var expEngines: ["stylestream", "streamvoiceanon", "vossa", "rtvc", "zerovc-repro", "tvtsyn-repro", "tvtsyn-aivoice"]
     property var repro: []
+    onMajorChanged: if (major === "res") sh(reproP, ["repro"])
     readonly property var mainPresets: ["natural", "masculine", "feminine", "deep", "warm", "bright", "broadcast", "robotic"]
     function sh(p, args) { const h = Quickshell.env("HOME"), u = Quickshell.env("USER"); p.environment = ({ HOME: h, USER: u, PATH: h + "/.local/bin:" + h + "/.nix-profile/bin:/etc/profiles/per-user/" + u + "/bin:/run/current-system/sw/bin" }); p.command = ["/run/current-system/sw/bin/bash", Quickshell.shellDir + "/run.sh"].concat(args); p.running = true }
     function vname(v) { return v.name || v.display_name || v.id || String(v) }
@@ -140,7 +141,7 @@ ShellRoot {
             RowLayout { Layout.fillWidth: true; spacing: 6
                 Repeater { model: [["vc", "󰗅 VOICE CONVERSION"], ["mod", "󰎈 VOICE MODULATION"], ["s2s", "󰗋 SPEECH-TO-SPEECH"], ["res", "󰙨 RESEARCH"]]
                     GalaxyButton { required property var modelData; text: modelData[1]; selected: root.major === modelData[0]; Layout.fillWidth: true; font.pixelSize: 11
-                        onClicked: { root.major = modelData[0]; if (root.major === "s2s") root.sh(s2sP, ["s2sstatus"]); if (root.major === "res") root.sh(reproP, ["repro"]) } } }
+                        onClicked: { root.major = modelData[0]; if (root.major === "s2s") root.sh(s2sP, ["s2sstatus"]) } } }
             }
             // hero + live metrics (shared by VC and modulation: both use aivoice-virtual-mic)
             Card {

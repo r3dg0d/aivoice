@@ -1,6 +1,11 @@
 """Zero-VC provenance record."""
 
-from ..common.provenance import ArchConfidence, Assumption, ReproductionInfo, SourceStatus
+from ..common.provenance import (
+    ArchConfidence,
+    Assumption,
+    ReproductionInfo,
+    SourceStatus,
+)
 
 INFO = ReproductionInfo(
     key="zerovc-repro",

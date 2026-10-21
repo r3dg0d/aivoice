@@ -44,14 +44,15 @@ def prepare(cfg: PlusConfig, dataset: str, out: str | Path, teacher_dirs: dict[s
     if features:
         import librosa
 
-        from ..model.official import repo_dir as _repo, import_modules
+        from ..model.official import import_modules
+        from ..model.official import repo_dir as _repo
 
         import_modules(repo_dir)
         import sys
 
         sys.path.insert(0, str(_repo(repo_dir) / "evaluations"))
-        from infer_arvc import InferenceWrapper  # type: ignore
         from funasr import AutoModel
+        from infer_arvc import InferenceWrapper  # type: ignore
 
         w = InferenceWrapper(cfg.base_config, cfg.base_checkpoint)
         emo = AutoModel(model=(teacher_dirs or {}).get("emotion2vec", "emotion2vec/emotion2vec_plus_base"))

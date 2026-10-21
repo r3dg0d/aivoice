@@ -9,7 +9,12 @@ from typing import Any
 import numpy as np
 import torch
 
-from ...common.checkpoint import CheckpointError, is_usable_for_inference, load_checkpoint, load_model_state
+from ...common.checkpoint import (
+    CheckpointError,
+    is_usable_for_inference,
+    load_checkpoint,
+    load_model_state,
+)
 from ..config import FRAME, SAMPLE_RATE, RTVCConfig, from_dict
 from ..info import INFO
 from ..model.rtvc import RTVC

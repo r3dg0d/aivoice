@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aivoice"
-version = "0.6.0"
+version = "0.7.0"
 description = "Local real-time voice toolkit: multi-engine streaming voice conversion (X-VC, RVC, MeanVC2), identity-preserving voice modulation, zero-shot cloning and an experimental ASR -> LLM -> TTS mode (disclosed synthetic media)"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [{ name = "r3dg0d" }]
-keywords = ["voice-conversion", "meanvc2", "realtime", "pipewire", "synthetic-media", "cli", "asr", "tts", "fish-audio", "moonshine", "parakeet", "voice-cloning", "zero-shot-tts", "voxcpm", "voicestar", "x-vc", "rvc", "voice-modulation", "streaming-vc"]
+keywords = ["voice-conversion", "meanvc2", "realtime", "pipewire", "synthetic-media", "cli", "asr", "tts", "fish-audio", "moonshine", "parakeet", "voice-cloning", "zero-shot-tts", "voxcpm", "voicestar", "x-vc", "rvc", "voice-modulation", "streaming-vc", "paper-reproduction"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",
@@ -37,7 +37,10 @@ moonshine = ["moonshine-voice>=0.1.5"]  # CPU streaming ASR
 parakeet = ["nemo_toolkit[asr]>=2.4"]  # GPU ASR; install a CUDA torch build yourself first
 llm = ["llama-cpp-python>=0.3"]  # GGUF rewriting on CPU (or CUDA build)
 fish = ["ormsgpack>=1.5"]  # msgpack bodies for fish-speech / Fish API (JSON fallback without it)
-keyring = ["keyring>=24"]  # Fish Audio API key in Secret Service / KWallet
+keyring = ["keyring>=24"]
+# --- paper reproductions (aivoice reproduce): torch installed by you for your CUDA version ---
+repro = ["soundfile>=0.12", "soxr>=0.3", "librosa>=0.10", "scipy>=1.10", "scikit-learn>=1.3", "tensorboard>=2.14",
+         "transformers>=4.40"]  # Fish Audio API key in Secret Service / KWallet
 # --- zero-shot cloning (0.5) ---
 # Evaluation and reference analysis: GE2E speaker similarity (Resemblyzer's weights, loaded weights_only).
 research = ["torch>=2.1", "librosa>=0.10", "resemblyzer>=0.1.4", "soundfile>=0.12"]

@@ -10,11 +10,16 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")
 
 from aivoice.research_reproductions.common import harness
-from aivoice.research_reproductions.common.streaming_nn import (CausalConv1d, CausalConvTranspose1d, Transformer,
-                                                                 state_nbytes)
+from aivoice.research_reproductions.common.streaming_nn import (
+    CausalConv1d,
+    CausalConvTranspose1d,
+    Transformer,
+    state_nbytes,
+)
 
 REFS = Path(os.environ.get("AIVOICE_TEST_REFS", "/nonexistent"))
 
@@ -107,7 +112,11 @@ def test_factorized_vq_straight_through():
 
 
 def test_losses_basic():
-    from aivoice.research_reproductions.common.losses import (MultiScaleSpectralLoss, lsgan_d_loss, lsgan_g_loss)
+    from aivoice.research_reproductions.common.losses import (
+        MultiScaleSpectralLoss,
+        lsgan_d_loss,
+        lsgan_g_loss,
+    )
 
     x = torch.randn(1, 4000)
     assert float(MultiScaleSpectralLoss((256, 64))(x, x)) < 1e-6
@@ -213,7 +222,11 @@ def test_exact_resume(tmp_path):
 
 
 def test_feature_cache_key_mismatch(tmp_path):
-    from aivoice.research_reproductions.common.features import FeatureCache, FeatureCacheError, FeatureSpec
+    from aivoice.research_reproductions.common.features import (
+        FeatureCache,
+        FeatureCacheError,
+        FeatureSpec,
+    )
 
     spec = FeatureSpec("f", "1", "m", "rev1", 16000, 320, 4)
     c = FeatureCache(tmp_path, spec)
@@ -228,7 +241,12 @@ def test_feature_cache_key_mismatch(tmp_path):
 def test_manifest_and_resumable_sampler(tmp_path):
     import soundfile as sf
 
-    from aivoice.research_reproductions.common.data import Filters, ResumableSampler, build_manifest, read_manifest
+    from aivoice.research_reproductions.common.data import (
+        Filters,
+        ResumableSampler,
+        build_manifest,
+        read_manifest,
+    )
 
     for spk in ("a", "b"):
         (tmp_path / "corpus" / spk).mkdir(parents=True)
@@ -252,21 +270,28 @@ def test_manifest_and_resumable_sampler(tmp_path):
 
 def _zerovc():
     from aivoice.research_reproductions.zerovc.config import tiny
-    from aivoice.research_reproductions.zerovc.streaming.inference import ZeroVCStreaming
+    from aivoice.research_reproductions.zerovc.streaming.inference import (
+        ZeroVCStreaming,
+    )
 
     return ZeroVCStreaming.untrained(tiny()), torch.randn(1, 32)
 
 
 def _rtvc():
     from aivoice.research_reproductions.rtvc.config import tiny
-    from aivoice.research_reproductions.rtvc.streaming.inference import RTVCStreaming, Target
+    from aivoice.research_reproductions.rtvc.streaming.inference import (
+        RTVCStreaming,
+        Target,
+    )
 
     return RTVCStreaming.untrained(tiny()), Target(torch.randn(1, 16), 0.9)
 
 
 def _tvtsyn():
     from aivoice.research_reproductions.tvtsyn.config import tiny
-    from aivoice.research_reproductions.tvtsyn.streaming.inference import TVTSynStreaming
+    from aivoice.research_reproductions.tvtsyn.streaming.inference import (
+        TVTSynStreaming,
+    )
 
     return TVTSynStreaming.untrained(tiny(), codebook_init_audio=harness.test_signal(16000, 3.0, 9)), torch.randn(1, 32)
 
@@ -307,11 +332,18 @@ def test_anonymizer_is_training_only():
 
 
 def test_untrained_checkpoint_refused(tmp_path):
-    from aivoice.research_reproductions.common.checkpoint import CheckpointError, CheckpointMeta, save_checkpoint
+    from dataclasses import asdict
+
+    from aivoice.research_reproductions.common.checkpoint import (
+        CheckpointError,
+        CheckpointMeta,
+        save_checkpoint,
+    )
     from aivoice.research_reproductions.zerovc.config import tiny
     from aivoice.research_reproductions.zerovc.model.zerovc import ZeroVC
-    from aivoice.research_reproductions.zerovc.streaming.inference import ZeroVCStreaming
-    from dataclasses import asdict
+    from aivoice.research_reproductions.zerovc.streaming.inference import (
+        ZeroVCStreaming,
+    )
 
     cfg = tiny()
     net = ZeroVC(cfg)
@@ -379,8 +411,12 @@ def test_tvtsyn_official_parity():
 def test_streamvoiceanon_plus_extension(monkeypatch):
     monkeypatch.setenv("AIVOICE_STREAMVOICEANON_REPO_DIR", str(REFS / "StreamVoiceAnon"))
     from aivoice.research_reproductions.streamvoiceanon_plus.config import tiny
-    from aivoice.research_reproductions.streamvoiceanon_plus.model.extension import StreamVoiceAnonPlus
-    from aivoice.research_reproductions.streamvoiceanon_plus.model.official import tiny_official
+    from aivoice.research_reproductions.streamvoiceanon_plus.model.extension import (
+        StreamVoiceAnonPlus,
+    )
+    from aivoice.research_reproductions.streamvoiceanon_plus.model.official import (
+        tiny_official,
+    )
 
     c = tiny()
     d = c.test_dims

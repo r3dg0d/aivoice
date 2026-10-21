@@ -32,7 +32,13 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-from .checkpoint import CheckpointMeta, load_checkpoint, load_model_state, save_checkpoint, set_rng_state
+from .checkpoint import (
+    CheckpointMeta,
+    load_checkpoint,
+    load_model_state,
+    save_checkpoint,
+    set_rng_state,
+)
 from .data import ResumableSampler, collate
 
 
@@ -214,9 +220,9 @@ class Trainer:
         self.recipe, self.cfg = recipe, cfg
         self.out = Path(cfg.output)
         self.out.mkdir(parents=True, exist_ok=True)
-        self.rank = int(os.environ.get("RANK", 0))
-        self.world = int(os.environ.get("WORLD_SIZE", 1))
-        self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
+        self.rank = int(os.environ.get("RANK", "0"))
+        self.world = int(os.environ.get("WORLD_SIZE", "1"))
+        self.local_rank = int(os.environ.get("LOCAL_RANK", "0"))
         self.device = self._device()
         self.step = 0
         self.boundary = True
@@ -284,10 +290,22 @@ class Trainer:
         self.data_pos = {"epoch": 0, "pos": 0}
         if cfg.resume:
             self._resume(cfg.resume)
-        run_cfg = {"train": asdict(cfg), "model": self.recipe.model_config()}
+        run_cfg = {"train": asdict(cfg), "model": self.recipe.model_config(), "data": self._data_record(),
+                   "optimizers": {k: [{h: v for h, v in g.items() if h != "params"} for g in o.param_groups]
+                                  for k, o in self.optimizers.items()}}
+        self.run_record = run_cfg
         if self.rank == 0:
             (self.out / "run_config.json").write_text(json.dumps(run_cfg, indent=2, default=str) + "\n")
         self.logger = MetricsLogger(self.out, cfg, run_cfg, enabled=self.rank == 0)
+
+    def _data_record(self) -> dict[str, Any]:
+        """Manifest path + sha256 (reproducibility: which data a run saw)."""
+        from .checkpoint import sha256_file
+
+        m = getattr(self.recipe, "manifest", None)
+        if isinstance(m, (str, Path)) and Path(m).exists():
+            return {"manifest": str(Path(m).resolve()), "sha256": sha256_file(m), "items": len(self.recipe.train_set)}
+        return {"manifest": "in-memory list" if m is not None else None, "items": len(self.recipe.train_set)}
 
     def _loader(self) -> Iterator[dict[str, Any]]:
         cfg = self.cfg
@@ -328,7 +346,8 @@ class Trainer:
         path = self._ckpt_dir() / f"{tag or f'step{self.step:08d}'}.pt"
         save_checkpoint(path, meta, self.models, optimizers=self.optimizers, schedulers=self.schedulers,
                         scaler=self.scaler, sampler_state={**self.sampler.state_dict(), **self.data_pos},
-                        extra={"train_config": asdict(self.cfg)})
+                        extra={"train_config": asdict(self.cfg), "data": self.run_record["data"],
+                               "optimizers": self.run_record["optimizers"]})
         (self._ckpt_dir() / "latest").write_text(path.name + "\n")
         self.status["last_checkpoint"] = str(path)
         self._prune()

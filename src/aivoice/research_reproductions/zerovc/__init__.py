@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from ..common.base import Reproduction
-from ..common.teachers import TeacherUnavailable, teacher_dir
 from . import config as C
 from .info import INFO
 
@@ -44,6 +43,8 @@ class ZeroVCReproduction(Reproduction):
         return ZeroVCStreaming.from_checkpoint(checkpoint, device, allow_untrained, kw.get("teacher_dirs"))
 
     def requirements(self) -> list[dict[str, Any]]:
+        from ..common.teacher_paths import TeacherUnavailable, teacher_dir
+
         out = []
         for name, why in (("wavlm-large", "timbre teacher (stage vc, and per-voice enrollment at inference)"),
                           ("w2v-bert-2.0", "content teacher, variant A (training only)"),

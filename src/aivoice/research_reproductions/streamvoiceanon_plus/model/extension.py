@@ -71,7 +71,8 @@ class StreamVoiceAnonPlus(nn.Module):
         delay, w_end, w_start = self._delay()
         seqs, lens = [], batch["src_lens"]
         for i in range(cond_s.shape[0]):
-            prefix = torch.cat([spk[i], self._interleave(cond_p[i], ac_p[i]), self.sep], 0)
+            sep = self.sep if self.cfg.use_sep else self.sep[:0]
+            prefix = torch.cat([spk[i], self._interleave(cond_p[i], ac_p[i]), sep], 0)
             src = self._interleave(torch.cat([cond_s[i, :lens[i]], w_end], 0), torch.cat([w_start, ac_s[i, :lens[i]]], 0))
             seqs.append(torch.cat([prefix, src], 0))
         P = prefix.shape[0]

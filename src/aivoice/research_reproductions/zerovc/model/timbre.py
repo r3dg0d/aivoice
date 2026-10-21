@@ -19,4 +19,9 @@ class TimbreEncoder(nn.Module):
 
     def forward(self, ssl_feats: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
         """ssl_feats [B, T, ssl_dim] (WavLM-large hidden_states[7]) -> [B, embed_dim]."""
-        return self.pool(ssl_feats, mask)
+        if self.cfg.pooling == "attention":
+            return self.pool(ssl_feats, mask)
+        if self.cfg.pooling == "mean":  # ablation: uniform weights, same projection
+            m = mask.float()[..., None] if mask is not None else torch.ones_like(ssl_feats[..., :1])
+            return self.pool.proj((ssl_feats * m).sum(1) / m.sum(1).clamp_min(1))
+        raise ValueError(f"timbre.pooling must be attention or mean, got {self.cfg.pooling!r}")

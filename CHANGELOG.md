@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.7.0 — 2026-10-21 — Paper reproductions
+
+### Added
+- **Reproduction framework** (`aivoice.research_reproductions.common`):
+  - provenance labels (source status, weights status, architecture confidence, PAPER-REPORTED / MEASURED);
+  - streaming-exact layers (causal conv / transposed conv / windowed MHSA with KV cache and RoPE offset, per-layer
+    lookahead);
+  - self-describing checkpoints (sha256, JSON sidecar, config fingerprint, environment, `weights_only` loading,
+    named shape errors);
+  - a generic trainer: BF16/FP16/TF32, grad accumulation and clipping, compile, fused AdamW, DDP, profiling;
+    **exact resume** including RNG and the consumed sampler position; OOM reports that change nothing;
+    JSONL/CSV/TensorBoard metrics, W&B opt-in;
+  - status/control files for a background service;
+  - manifests for LibriTTS / VCTK / LibriSpeech / custom with filters, a resampling cache and versioned feature
+    caches;
+  - a streaming harness (causality, state reset, chunk invariance, long session);
+  - a mandatory tiny-overfit gate.
+- **RT-VC** (`rtvc`, PARTIAL_OFFICIAL_CODE): official layout re-implemented with parameter-shape parity, causal
+  front-end, exact streaming state, and the pitch / EMA / vocoder training pipeline.
+- **Zero-VC** (`zerovc-repro`): content variants A (w2v-BERT 2.0 distillation) and B (HuBERT k-means, aivoice),
+  WavLM-L7 attention pooling, causal HiFi-GAN with zero future frames, and a training-only McAdams / external
+  anonymiser.
+- **TVTSyn** (`tvtsyn-repro`, `tvtsyn-aivoice`): content encoder, factorised VQ, Global Timbre Memory + gate +
+  Slerp verified against the official VOSSA code, and a decoder with pitch/energy predictors and KV caches.
+- **StreamVoiceAnon+** (`streamvoiceanon-plus`): SEP tokens + emotion2vec distillation around the official
+  dual-AR model.
+- **VOSSA** (`vossa`): official engine (code + checkpoints, CC BY-NC 4.0) in a worker.
+- **CLI `aivoice reproduce`** (list, info, status, prepare, train, resume, evaluate, export, verify, paper-map,
+  control, cost). `aivoice models info` shows provenance for reproductions and checkpoints. QuickShell gets a
+  **Research** tab.
+- Docs: `docs/reproductions/` (scorecard, per-paper guides), SPEC.md per reproduction, catalog / research review /
+  citations updated.
+
+### Changed
+- `rtvc`, `zerovc`, `tvtsyn` are no longer catalogue-only. They are reproduction engines that report
+  MISSING_WEIGHTS until a trained checkpoint is installed (`zerovc` / `tvtsyn` remain as aliases).
+
+### Fixed (found by the new tests)
+- DataLoader iterators drew their seed from the global RNG, which broke exact resume.
+- A resume landing on an epoch boundary was rejected as "fewer items than one batch".
+
 ## 0.6.0 — 2026-10-21 — Multi-Engine Streaming Voice Conversion
 
 ### Added — three live systems on one virtual mic

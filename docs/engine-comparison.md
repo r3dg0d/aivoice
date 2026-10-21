@@ -15,15 +15,16 @@ design figure or a paper claim and is labelled so.
 | `meanvc2` MeanVC2 | official implementation (arXiv) | MISSING_RUNTIME | yes | 16 kHz | 80 ms (40+40) / 160 ms (120+40) + ASR window | README Apache-2.0, LICENSE missing | kept, resident; no longer assumed best |
 | `stylestream` | official implementation | MISSING_RUNTIME | curated styles only | 16 kHz | ~645 ms + compute (~1 s reported) | non-commercial | EXPERIMENTAL: too slow for gaming |
 | `streamvoiceanon` | official implementation (ICASSP 2026) | MISSING_RUNTIME | yes | 44.1 kHz | ~139 ms by frames (180 ms reported) | Apache-2.0 | EXPERIMENTAL: anonymisation research, CUDA only |
-| `rtvc` RT-VC | peer-reviewed demo paper | BLOCKED_CODE | yes | 16 kHz | 61.4 ms reported (CPU) | **no LICENSE** | no weights, no streaming code, no license |
-| `zerovc` Zero-VC | arXiv | RESEARCH_ONLY | yes | - | zero lookahead (reported) | - | no public code or weights |
-| `tvtsyn` TVTSyn | peer-reviewed (ICLR 2026) | RESEARCH_ONLY | yes | - | < 80 ms GPU (reported) | CC BY-NC 4.0 (indexed) | release could not be inspected here |
+| `vossa` VOSSA | official implementation (Interspeech 2026) | MISSING_RUNTIME here | yes | 16 kHz | 60 ms chunk + 80 ms lookahead (configurable) | CC BY-NC 4.0 | 0.7: official code + weights, EXPERIMENTAL |
+| `rtvc` RT-VC | paper reproduction (0.7) | MISSING_WEIGHTS (train it) | yes | 16 kHz | 5 ms frames, 0 future frames | aivoice Apache-2.0; official repo unlicensed | layout parity with official classes; [docs](reproductions/rtvc.md) |
+| `zerovc-repro` Zero-VC | paper reproduction (0.7) | MISSING_WEIGHTS (train it) | yes | 16 kHz | 20 ms frames, 0 future frames | aivoice Apache-2.0 | [docs](reproductions/zerovc.md) |
+| `tvtsyn-repro` / `tvtsyn-aivoice` | paper reproduction / aivoice variant (0.7) | MISSING_WEIGHTS (train it) | yes | 16 kHz | 640 ms (official config, exact) / 80 ms | aivoice Apache-2.0 | [docs](reproductions/tvtsyn.md) |
 | `dsp` modulation | aivoice | **READY** | n/a (own voice) | 48 kHz | 32 ms (16 ms low-latency) | Apache-2.0 | measured below |
 | `passthrough` | aivoice | **READY** | n/a | 48 kHz | 0 | Apache-2.0 | last-resort fallback |
 
 "Reported" = from the paper/abstract (search-indexed), never used for routing.
 
-## Why engines were not integrated
+## Why engines were not integrated (0.6; see [reproductions](reproductions/README.md) for 0.7)
 
 - **RT-VC**: the official repository contains model definitions and an offline helper only; no checkpoints, no
   streaming loop, and no LICENSE file (all rights reserved by default). Integrating it would mean re-implementing and

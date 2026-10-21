@@ -143,4 +143,4 @@ def hz_to_cents(f0: torch.Tensor, ref: float = 10.0) -> torch.Tensor:
     return 1200.0 * torch.log2(f0.clamp_min(1e-5) / ref)
 
 
-__all__ = ["Loudness", "MFCC", "MelSpectrogram", "a_weighting_db", "f0_yin", "hz_to_cents", "mel_basis", "stft_mag"]
+__all__ = ["MFCC", "Loudness", "MelSpectrogram", "a_weighting_db", "f0_yin", "hz_to_cents", "mel_basis", "stft_mag"]

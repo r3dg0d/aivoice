@@ -39,6 +39,9 @@ class TimbreConfig:
     gate_hidden: int = 256    # VERIFIED
     gtm_hidden: int = 256     # VERIFIED
     token_dropout: float = 0.1  # VERIFIED
+    interp: str = "slerp"     # VERIFIED slerp; "lerp" = ABLATION (normalised linear interpolation, not the paper)
+    gate: str = "learned"     # VERIFIED learned gate; "fixed" = ABLATION (alpha = fixed_alpha everywhere)
+    fixed_alpha: float = 0.5
 
 
 @dataclass

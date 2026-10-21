@@ -28,7 +28,7 @@ if not eng.rootObjects():
     print("WARN load failed", flush=True)
     sys.exit(0)
 root = eng.rootObjects()[0]
-steps = [("major", "s2s"), ("major", "mod"), ("advanced", True), ("major", "s2s"), ("major", "vc"), ("showExperimental", True), ("vcEngine", "xvc")]
+steps = [("major", "res"), ("major", "s2s"), ("major", "mod"), ("advanced", True), ("major", "s2s"), ("major", "vc"), ("showExperimental", True), ("vcEngine", "xvc")]
 
 
 def step():

@@ -46,7 +46,7 @@ def config_fingerprint(config: dict[str, Any]) -> str:
 def git_state(path: str | Path | None = None) -> dict[str, Any]:
     root = Path(path or Path(__file__).resolve().parents[4])
     try:
-        commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True,
+        commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, check=False,
                                 timeout=5).stdout.strip()
         dirty = bool(subprocess.run(["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
                                     capture_output=True, text=True, timeout=5).stdout.strip())

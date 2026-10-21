@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from ..common.base import Reproduction, apply_overrides
-from ..common.teachers import TeacherUnavailable, teacher_dir
 from . import config as C
 from .info import INFO
 
@@ -40,6 +39,8 @@ class TVTSynReproduction(Reproduction):
         return TVTSynStreaming.from_checkpoint(checkpoint, device, allow_untrained)
 
     def requirements(self) -> list[dict[str, Any]]:
+        from ..common.teacher_paths import TeacherUnavailable, teacher_dir
+
         out = []
         for name, why in (("hubert-base", "k-means pseudo-labels (training only)"),
                           ("xvector", "512-d global speaker embedding (training + enrollment)"),

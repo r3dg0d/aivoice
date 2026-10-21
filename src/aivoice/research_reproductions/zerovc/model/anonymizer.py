@@ -54,11 +54,13 @@ def mcadams(x: np.ndarray, sr: int, alpha: float, order: int = 20, win_ms: float
 class Anonymizer:
     def __init__(self, kind: str = "mcadams", alpha_range: tuple[float, float] = (0.7, 0.9), order: int = 20,
                  sr: int = 16000) -> None:
-        if kind not in ("mcadams", "external"):
-            raise ValueError(f"anonymizer kind must be mcadams or external, got {kind!r}")
+        if kind not in ("mcadams", "external", "none"):
+            raise ValueError(f"anonymizer kind must be mcadams, external or none, got {kind!r}")
         self.kind, self.alpha_range, self.order, self.sr = kind, alpha_range, order, sr
 
     def __call__(self, x: np.ndarray, rng: np.random.Generator, anonymized: np.ndarray | None = None) -> np.ndarray:
+        if self.kind == "none":  # ablation: the decoder sees the unperturbed source
+            return x
         if self.kind == "external":
             if anonymized is None:
                 raise ValueError("anonymizer=external but the manifest row has no anonymized_path")

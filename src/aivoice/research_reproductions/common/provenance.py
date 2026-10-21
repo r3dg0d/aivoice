@@ -113,5 +113,16 @@ def weights_label(weights_status: WeightsStatus | str) -> str:
     }[ws]
 
 
-__all__ = ["ArchConfidence", "Assumption", "MEASURED", "ModelProvenance", "PAPER_REPORTED", "ReproductionInfo",
-           "SourceStatus", "WeightsStatus", "measured", "paper_reported", "weights_label"]
+__all__ = [
+    "MEASURED",
+    "PAPER_REPORTED",
+    "ArchConfidence",
+    "Assumption",
+    "ModelProvenance",
+    "ReproductionInfo",
+    "SourceStatus",
+    "WeightsStatus",
+    "measured",
+    "paper_reported",
+    "weights_label",
+]
