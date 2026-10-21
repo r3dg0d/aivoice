@@ -86,3 +86,58 @@ class StreamResampler:
         self._pos = idx[-1] + self.step - last
         self._prev = buf[-1:]
         return out
+
+
+class StreamingResampler:
+    """Chunk-continuous polyphase windowed-sinc resampler (Kaiser, beta 8) for live engine I/O.
+
+    Unlike :class:`StreamResampler` (linear interpolation, for TTS playback) this keeps proper
+    anti-aliasing for 48 kHz <-> 16 kHz around neural VC engines. Exact rational ratio; state is
+    the input history needed by the filter and the fractional output phase, so chunk boundaries are
+    seamless (output of any chunking equals the output of one call, to float precision).
+    Group delay: ``taps_per_phase / 2`` input samples (``delay_out`` output samples).
+    """
+
+    def __init__(self, sr_in: int, sr_out: int, *, taps_per_phase: int = 24) -> None:
+        g = gcd(int(sr_in), int(sr_out))
+        self.up, self.down = int(sr_out) // g, int(sr_in) // g
+        self.sr_in, self.sr_out = int(sr_in), int(sr_out)
+        self.identity = self.up == self.down
+        self.k = taps_per_phase
+        if not self.identity:
+            n = self.k * self.up
+            cutoff = 0.5 / max(self.up, self.down) * 0.94
+            t = np.arange(n) - (n - 1) / 2
+            h = 2 * cutoff * np.sinc(2 * cutoff * t) * np.kaiser(n, 8.0) * self.up
+            # phase p, tap j -> h[p + j*up]; reversed taps so a dot with history (oldest first) works
+            self.bank = np.stack([h[p::self.up][: self.k][::-1] for p in range(self.up)]).astype(np.float64)
+        self.reset()
+
+    def reset(self) -> None:
+        self.hist = np.zeros(self.k - 1, np.float64)
+        self.t = 0  # next output index in units of 1/up input samples, relative to hist start + (k-1)
+
+    @property
+    def delay_out(self) -> float:
+        return 0.0 if self.identity else (self.k * self.up - 1) / 2 / self.down
+
+    def process(self, x: np.ndarray) -> np.ndarray:
+        x = np.asarray(x, np.float32)
+        if self.identity or x.size == 0:
+            return x.copy()
+        buf = np.concatenate([self.hist, x.astype(np.float64)])
+        avail = buf.size - (self.k - 1)  # input samples that can end a filter window
+        # output m uses input position pos = t + m*down (in 1/up units): sample index i = pos // up, phase p = pos % up
+        last = avail * self.up  # exclusive bound in 1/up units
+        if self.t >= last:
+            self.hist = buf[-(self.k - 1):]
+            self.t -= x.size * self.up
+            return np.zeros(0, np.float32)
+        m = np.arange((last - 1 - self.t) // self.down + 1)
+        pos = self.t + m * self.down
+        i, p = pos // self.up, pos % self.up
+        idx = i[:, None] + np.arange(self.k)[None, :]
+        y = np.einsum("mk,mk->m", buf[idx], self.bank[p])
+        self.t = int(pos[-1] + self.down - x.size * self.up)
+        self.hist = buf[-(self.k - 1):]
+        return y.astype(np.float32)

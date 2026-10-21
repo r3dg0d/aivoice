@@ -116,6 +116,32 @@ class Player:
 
     flush = cancel
 
+    def trim_quiet(self, uid: str, target_ms: float, *, quiet_rms: float = 0.01) -> int:
+        """Bound latency on a continuous stream: drop queued *quiet* chunks while more than *target_ms* is buffered.
+
+        Two independent clocks (capture and playback) drift, and every underrun adds latency for good;
+        dropping silence brings it back without cutting into speech. Returns samples dropped.
+        """
+        dropped = 0
+        limit = int(self.sample_rate * target_ms / 1000)
+        with self._lock:
+            u = self._by_id.get(uid)
+            if u is None or not u.started:
+                return 0
+            keep: collections.deque = collections.deque()
+            while u.chunks and u.queued > limit:
+                c = u.chunks.popleft()
+                if c.size and float(np.sqrt(np.mean(c * c))) < quiet_rms and u.queued - c.size >= limit // 2:
+                    u.queued -= c.size
+                    dropped += c.size
+                else:
+                    keep.append(c)
+                    break
+            while keep:
+                u.chunks.appendleft(keep.pop())
+        self.trimmed = getattr(self, "trimmed", 0) + dropped
+        return dropped
+
     def set_gain_db(self, db: float) -> None:
         self._target_gain = 10 ** (db / 20)
 
