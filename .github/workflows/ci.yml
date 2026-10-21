@@ -63,6 +63,10 @@ jobs:
           aivoice research citations > /dev/null
           aivoice clone list
           aivoice benchmark --help
+          aivoice vc engines
+          aivoice vc route
+          aivoice modulate preset list
+          aivoice research experiments
         env:
           AIVOICE_MOCK_DEVICES: "1"
       - name: Showcase integrity

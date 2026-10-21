@@ -14,3 +14,14 @@ MeanVC2 upstream (optional vendor checkout / research dependency)
 
 Upstream dependencies (WeNet, Vocos, WavLM, fairseq, FunASR, Emilia data, etc.)
   have their own licenses — track separately; do not redistribute training datasets.
+
+Live voice-conversion backends (optional, each in its own checkout/venv; not vendored into this repository)
+  X-VC            https://github.com/Jerrister/X-VC @ 49df8c5 - MIT (LICENSE file present).
+                  Weights: huggingface.co/chenxie95/X-VC; GLM-4-Voice tokenizer (zai-org); ERes2Net (ModelScope iic/).
+                  Check each model card's license before use.
+  StyleStream     https://github.com/Berkeley-Speech-Group/StyleStream @ 38dd18c - Research, Educational and
+                  Not-for-Profit Software License (UC Regents). NO commercial use. Experimental engine only.
+  StreamVoiceAnon https://github.com/Plachtaa/StreamVoiceAnon @ 2017051 - Apache-2.0.
+  RVC             rvc-python / RVC-Project (MIT); voice models carry their uploaders' terms.
+  RT-VC           https://github.com/Berkeley-Speech-Group/RT-VC - no LICENSE file and no weights: not integrated.
+aivoice does not relicense any of these; retain their notices when installing them.

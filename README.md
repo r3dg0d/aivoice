@@ -1,6 +1,29 @@
 # aivoice
 
-Local **real-time AI voice conversion** wrapping [MeanVC2](https://github.com/ASLP-lab/MeanVC2) ([arXiv:2606.09050](https://arxiv.org/abs/2606.09050)), with a searchable voice library and honest RVC → MeanVC2 **profile** migration.
+Local, real-time voice platform for Linux/PipeWire with **three separate systems** that all play into one stable
+`aivoice-virtual-mic` (Discord, OBS, VRChat, games and browsers never need re-pointing):
+
+| | What it does | Command |
+|---|---|---|
+| **Direct voice conversion** | your speech → a target voice (X-VC, RVC v1/v2, MeanVC2; experimental StyleStream, StreamVoiceAnon) | `aivoice live --engine xvc --voice NAME` |
+| **Voice modulation** | *your own* voice with altered attributes (pitch, formants, resonance, quality) — e.g. an identity-preserving masculine mode | `aivoice modulate masculine --strength 65` |
+| **Speech-to-speech** | ASR → optional LLM → expressive TTS | `aivoice experimental start` |
+
+**New in 0.6 — Multi-Engine Streaming Voice Conversion.** MeanVC2 is no longer assumed to be the best backend:
+engines compete on equal footing through one streaming interface, and `--engine auto` picks from **local**
+benchmark results only ([docs/streaming-vc.md](docs/streaming-vc.md), [docs/engine-comparison.md](docs/engine-comparison.md)).
+
+- X-VC (codec-space streaming VC) integrated from the official code; live RVC behind the shared pipeline; MeanVC2
+  kept resident. RT-VC, Zero-VC and TVTSyn were investigated and are listed honestly as not runnable.
+- A streaming DSP modulation engine (32 ms, ~0.1 RTF on one CPU core) that is also every session's fallback: if a
+  neural engine crashes, your mic keeps working.
+- `aivoice benchmark vc`: latency p50/p95/p99, RTF, VRAM, speaker similarity, source leakage, WER, clicks — with a
+  loudness-matched listening set.
+- QuickShell widget with Voice conversion / Voice modulation / Speech-to-speech modes ([docs/quickshell.md](docs/quickshell.md)).
+
+> The neural VC engines were **not run** where this release was built (no GPU; Hugging Face unreachable). Their
+> integration is tested against upstream's code paths, but quality and latency must be measured on your machine:
+> `aivoice benchmark vc --engines xvc,meanvc2,rvc --voice NAME`. See [STATUS.md](STATUS.md).
 
 **New in 0.4 (experimental):** a real-time *speech-to-speech* mode: microphone → VAD →
 streaming ASR (Moonshine on CPU, or Parakeet TDT 0.6B v3) → transcript stabilizer → optional
@@ -104,6 +127,23 @@ aivoice voices import-rvc model.zip --no-synthesize      # old behaviour: incomp
 ```
 
 The same applies to `aivoice voices install --search …` and `virtualmic --search …`: a downloaded model with no preview audio now becomes a usable voice. Re-importing a package upgrades an earlier *incomplete* entry instead of failing.
+
+## Live voice conversion and modulation (0.6)
+
+```bash
+aivoice engines list                                       # READY / MISSING_WEIGHTS / RESEARCH_ONLY / ... per engine
+aivoice models install xvc --yes                           # X-VC (own venv: docs/xvc.md)
+aivoice live --engine xvc --voice "Target" --consent-ack   # resident model, DSP fallback, status file
+aivoice virtualmic --engine auto --priority gaming --voice "Target" --consent-ack
+aivoice modulate masculine --strength 65                   # your own voice: pitch + formants, no target, no upload
+aivoice modulate preset list | use NAME | save NAME ...
+aivoice vc status --watch                                  # latency / RTF / GPU / VRAM / fallbacks
+aivoice benchmark vc --engines xvc,meanvc2,rvc --voice "Target" --consent-ack
+```
+
+Docs: [streaming-vc](docs/streaming-vc.md) · [engine-comparison](docs/engine-comparison.md) · [xvc](docs/xvc.md) ·
+[rvc-live](docs/rvc-live.md) · [voice-modulation](docs/voice-modulation.md) · [masculine-voice](docs/masculine-voice.md) ·
+[realtime-architecture](docs/realtime-architecture.md) · [quickshell](docs/quickshell.md)
 
 ## Live RVC v2 engine and Quickshell widget
 
@@ -235,7 +275,11 @@ aivoice models install meanvc2 --yes
 | `aivoice doctor` | Environment checks |
 | `aivoice devices` / `live` / `file` | Devices & conversion |
 | `aivoice clone create\|list\|inspect\|preview\|synthesize\|compare\|delete\|migrate\|attest\|adapt` | Zero-shot cloning (0.5) |
-| `aivoice engines list\|info\|capabilities\|benchmark` | Cloning / conversion engines |
+| `aivoice engines list\|info\|capabilities\|benchmark` | Cloning / conversion engines (with live-engine states) |
+| `aivoice live\|virtualmic\|file --engine auto\|xvc\|rvc\|meanvc2\|dsp\|...` | Live VC on the shared pipeline (0.6) |
+| `aivoice modulate PRESET\|preset\|calibrate` | Identity-preserving modulation of your own voice (0.6) |
+| `aivoice vc engines\|route\|status\|stop\|control\|set` | Live session state and control (0.6) |
+| `aivoice benchmark vc` | VC latency / similarity / leakage / WER / VRAM comparison (0.6) |
 | `aivoice benchmark research` | Similarity, WER/CER, latency, memory across engines |
 | `aivoice research list\|citations\|experiments` | Papers, status, ablations |
 
@@ -261,6 +305,9 @@ aivoice models install meanvc2 --yes
 | **VoxCPM2** (optional, own venv) | Apache-2.0 code and weights (official README) |
 | **VoiceStar** (optional) | code MIT, weights CC-BY-4.0 |
 | **X-Voice** (optional) | code MIT; check the weights' model card |
+| **X-VC** (optional, own venv) | code MIT; weights per model cards (chenxie95/X-VC, GLM-4-Voice tokenizer, ERes2Net) |
+| **StyleStream** (experimental) | research / non-commercial only (UC Regents license) |
+| **StreamVoiceAnon** (experimental) | Apache-2.0 code; weights per model card |
 | **Resemblyzer GE2E weights** (evaluation) | Apache-2.0 |
 
 ## Citation

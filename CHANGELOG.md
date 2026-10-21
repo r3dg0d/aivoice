@@ -1,6 +1,54 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 — 2026-10-21 — Multi-Engine Streaming Voice Conversion
+
+### Added — three live systems on one virtual mic
+- **Streaming VC layer** (`aivoice.vc`):
+  - `StreamingVCEngine` interface: `capabilities / status / load / prepare_reference / start_stream /
+    process_chunk / flush / reset_stream / unload`, with `VCCapabilities` (task, streaming, zero-shot,
+    reference / model-file requirements, verified cross-lingual flag, chunk, lookahead, algorithmic latency, devices,
+    license, pinned code, evidence class).
+  - Real engine states: READY, INSTALLED, MISSING_WEIGHTS, MISSING_RUNTIME, UNSUPPORTED_HARDWARE, EXPERIMENTAL,
+    RESEARCH_ONLY, BLOCKED_LICENSE, BLOCKED_CODE (`aivoice engines list`, `aivoice vc engines`).
+  - Resident worker models (`vc/stream_worker.py`, one interpreter per engine, loaded once, JSON-lines chunks;
+    0.13 ms mean IPC overhead per chunk measured).
+- **Engines:** `xvc` (X-VC, official code @ 49df8c5, incremental chunkwise streaming, sample-identical to upstream),
+  `meanvc2` (resident upstream `VCRunner`), `rvc` (the c7d5db8 `RvcRealtime` block processor behind the shared
+  pipeline), experimental `stylestream` and `streamvoiceanon`, and `dsp` / `passthrough`. Catalogue-only, never
+  runnable: `rtvc` (BLOCKED_CODE), `zerovc` and `tvtsyn` (RESEARCH_ONLY).
+- **Shared live pipeline** (`vc/live.py`): capture → gain → optional pre-stage → polyphase resampling → engine →
+  optional post-modulation → limiter → `aivoice_sink`; fallback chain on crash / timeout / error (default DSP, then
+  passthrough) with primary restart; drift control (`Player.trim_quiet`); status file for widgets and live control
+  file (`aivoice vc status|stop|control|set`).
+- **Router:** `--engine auto --priority balanced|latency|gaming|similarity|naturalness|streaming-quality|low-vram|cpu`
+  ranks on local `benchmark vc` measurements only; without them the previous order (RVC → MeanVC2 → X-VC) is used and
+  labelled unmeasured.
+- **Voice modulation** (`aivoice.modulation`, `aivoice modulate`): streaming DSP engine with independent pitch
+  (excitation phase vocoder, identity phase locking) and formants (cepstral true-envelope warp), intonation range,
+  body/resonance/brightness/tilt, calibrated breathiness, roughness, noise suppression, de-esser, compressor,
+  limiter, delay-matched bypass; 23 presets incl. an identity-preserving masculine mode (pitch + formants);
+  `--identity FLOOR`, `modulate calibrate`, user presets.
+- **Benchmark:** `aivoice benchmark vc` — same sources/targets through every runnable engine on the live path:
+  chunk p50/p95/p99, RTF, declared vs measured delay, CPU, RSS, worker VRAM, GE2E target similarity, source leakage,
+  WER/CER (with an ASR), clicks, F0 jumps; loudness-matched (−23 LUFS) listening set + manifest, JSON, CSV.
+- **Experiments** L, M, N, O, R measured (identity retention, masculinisation ablation, formant contribution, 30-minute
+  stability, chunk smoothing); I, J, K, P, Q defined and reported as not run. `aivoice research long-session`.
+- **Install:** `aivoice models install xvc --yes` (pinned checkout + Hugging Face weights + ModelScope ERes2Net).
+- **QuickShell widget:** VOICE CONVERSION / VOICE MODULATION / SPEECH-TO-SPEECH modes, engine buttons from real
+  status, experimental section, modulation sliders applied live, A/B bypass, save preset, live latency/RTF/GPU/VRAM/
+  underrun metrics; tested offscreen against stub Quickshell modules with real CLI output.
+- **Research catalogue:** X-VC, RT-VC, Zero-VC, TVTSyn, StyleStream, StreamVoiceAnon(+), RVC, Laroche-Dolson phase
+  locking, true envelope, voice-gender acoustics (unverified); evidence classes.
+- **Docs:** streaming-vc, voice-modulation, masculine-voice, xvc, rvc-live, engine-comparison, realtime-architecture,
+  quickshell.
+
+### Fixed
+- MeanVC2 file conversion now passes `--device` to `infer_e2e.py` (it ran on the CPU).
+- `rvc/rt_worker.py` block processing moved into `RvcRealtime` (same behaviour; reusable by the shared pipeline).
+- QuickShell `run.sh` failed on machines without `~/.cache`.
+- `aivoice experimental status --json` now reports which ASR runtimes are installed.
+
+## Live RVC engine and Quickshell widget (c7d5db8, 02bd6fa, 81ffa29)
 
 ### Added
 - **Live RVC v1/v2 engine** (`src/aivoice/rvc/rt_worker.py`): the model stays loaded on the GPU and streams mic blocks to `aivoice-virtual-mic`. It is the default engine when a voice has an RVC `.pth`; MeanVC2 remains selectable. Pitch and index-rate controls.

@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aivoice"
-version = "0.5.0"
-description = "Local AI voice toolkit: MeanVC2 real-time conversion, zero-shot cloning (VoxCPM2, X-Voice, VoiceStar) and an experimental ASR -> LLM -> TTS mode (disclosed synthetic media)"
+version = "0.6.0"
+description = "Local real-time voice toolkit: multi-engine streaming voice conversion (X-VC, RVC, MeanVC2), identity-preserving voice modulation, zero-shot cloning and an experimental ASR -> LLM -> TTS mode (disclosed synthetic media)"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [{ name = "r3dg0d" }]
-keywords = ["voice-conversion", "meanvc2", "realtime", "pipewire", "synthetic-media", "cli", "asr", "tts", "fish-audio", "moonshine", "parakeet", "voice-cloning", "zero-shot-tts", "voxcpm", "voicestar"]
+keywords = ["voice-conversion", "meanvc2", "realtime", "pipewire", "synthetic-media", "cli", "asr", "tts", "fish-audio", "moonshine", "parakeet", "voice-cloning", "zero-shot-tts", "voxcpm", "voicestar", "x-vc", "rvc", "voice-modulation", "streaming-vc"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",

@@ -1,5 +1,5 @@
 {
-  description = "aivoice — local AI voice changer (MeanVC2) + experimental ASR -> LLM -> Fish Drama 3 mode";
+  description = "aivoice — local multi-engine voice changer (X-VC / RVC / MeanVC2 / DSP modulation) + experimental ASR -> LLM -> TTS mode";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -28,7 +28,7 @@
 
         mkAivoice = extra: py.buildPythonApplication {
           pname = "aivoice";
-          version = "0.4.0";
+          version = "0.6.0";
           src = ./.;
           format = "pyproject";
           nativeBuildInputs = [ py.hatchling ];
