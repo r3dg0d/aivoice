@@ -224,6 +224,9 @@ def load_model_state(model: nn.Module, state: dict[str, torch.Tensor], *, name: 
 
 
 def is_usable_for_inference(meta: dict[str, Any]) -> tuple[bool, str]:
+    cfg = meta.get("config") or {}
+    if cfg.get("test_standin") or cfg.get("test_tiny"):
+        return False, "TEST STAND-IN: trained against stand-in teachers / tiny test model; a pipeline test, not a model"
     ws = meta.get("weights_status")
     if ws in (WeightsStatus.RANDOM_INIT.value, WeightsStatus.NONE.value):
         return False, weights_label(ws)

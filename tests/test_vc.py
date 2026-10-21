@@ -288,16 +288,19 @@ def test_missing_interpreter_is_missing_runtime(monkeypatch):
     assert st.state == EngineState.MISSING_RUNTIME and not st.ready
 
 
-def test_catalog_only_engines_can_never_start():
+def test_catalog_only_engines_can_never_start(monkeypatch, tmp_path):
     for c in catalog_only():
         st = c.status()
         assert not st.state.runnable
         with pytest.raises(Exception):
             c.load()
+    # 0.7: RT-VC / Zero-VC / TVTSyn are paper reproductions; without a trained checkpoint they cannot start
+    monkeypatch.setenv("AIVOICE_REPRO_HOME", str(tmp_path))
     states = {s.name: s.state for s in all_vc_status()}
     assert states["dsp"] == EngineState.READY
-    assert states["rtvc"] == EngineState.BLOCKED_CODE
-    assert states["zerovc"] == EngineState.RESEARCH_ONLY
+    for k in ("rtvc", "zerovc-repro", "tvtsyn-repro"):
+        assert states[k] == EngineState.MISSING_WEIGHTS
+        assert not states[k].runnable
 
 
 def test_meanvc2_handler_drives_vcrunner(tmp_path):
@@ -421,7 +424,7 @@ def test_cli_modulate_and_vc(tmp_path):
     out = r.invoke(main, ["vc", "engines", "--json"])
     assert out.exit_code == 0
     names = {e["name"]: e["state"] for e in json.loads(out.output)}
-    assert names["dsp"] == "READY" and names["zerovc"] == "RESEARCH_ONLY"
+    assert names["dsp"] == "READY" and names["zerovc-repro"] in ("MISSING_WEIGHTS", "EXPERIMENTAL")
     src = tmp_path / "in.wav"
     write_wav(src, _speech(0.6), SR)
     dst = tmp_path / "out.wav"
@@ -431,7 +434,7 @@ def test_cli_modulate_and_vc(tmp_path):
     out = r.invoke(main, ["modulate", "nosuchpreset", "--file", str(src)])
     assert out.exit_code != 0
     out = r.invoke(main, ["engines", "list"])
-    assert out.exit_code == 0 and "RESEARCH_ONLY" in out.output and "Live voice conversion" in out.output
+    assert out.exit_code == 0 and "aivoice reproduce" in out.output and "Live voice conversion" in out.output
     out = r.invoke(main, ["vc", "status", "--json"])
     assert json.loads(out.output) == {"running": False}
 

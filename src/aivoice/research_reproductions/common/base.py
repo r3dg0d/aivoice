@@ -25,6 +25,7 @@ class Reproduction:
 
     info: ReproductionInfo
     stages: dict[str, str] = {}
+    inference_stages: tuple[str, ...] = ()  # checkpoint stages that are complete conversion models
     package_dir: Path
 
     def config(self, preset: str = "paper", stage: str | None = None, overrides: dict[str, Any] | None = None) -> Any:
@@ -65,8 +66,10 @@ class Reproduction:
         elif ckpts:
             meta = read_meta(ckpts[-1])
             ok, why = is_usable_for_inference(meta)
-            st.update(state=READY if ok and meta.get("extra_ready", True) else CHECKPOINT, checkpoint=str(ckpts[-1]),
-                      weights=why, step=meta.get("step"))
+            stage = (meta.get("config") or {}).get("stage")
+            if ok and stage not in self.inference_stages:
+                ok, why = False, f"{why}; stage `{stage}` checkpoint (not a complete conversion model yet)"
+            st.update(state=READY if ok else CHECKPOINT, checkpoint=str(ckpts[-1]), weights=why, step=meta.get("step"))
         elif not (run / "prepared.json").exists():
             st["state"] = NOT_PREPARED
         else:

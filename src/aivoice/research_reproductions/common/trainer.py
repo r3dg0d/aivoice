@@ -295,9 +295,13 @@ class Trainer:
             ds = self.recipe.train_set
             if hasattr(ds, "epoch"):
                 ds.epoch = self.sampler.epoch
+            # own generator: a DataLoader otherwise draws its worker base seed from the global RNG, which would
+            # make a resumed run diverge from an uninterrupted one
+            gen = torch.Generator().manual_seed(cfg.seed * 7919 + self.sampler.epoch * 104729 + self.rank)
             loader = DataLoader(ds, batch_size=cfg.batch_size, sampler=self.sampler, num_workers=cfg.workers,
                                 collate_fn=collate, pin_memory=self.device.type == "cuda", drop_last=True,
-                                persistent_workers=False, prefetch_factor=4 if cfg.workers > 0 else None)
+                                persistent_workers=False, prefetch_factor=4 if cfg.workers > 0 else None,
+                                generator=gen)
             # DataLoader workers prefetch, so the sampler runs ahead of training; the resume point is
             # what training actually consumed, tracked here.
             epoch, pos = self.sampler.epoch, self.sampler.pos
@@ -308,7 +312,7 @@ class Trainer:
                 yield batch
             self.sampler.epoch, self.sampler.pos = epoch + 1, 0
             self.data_pos = {"epoch": epoch + 1, "pos": 0}
-            if n == 0:
+            if n == 0 and len(ds) < cfg.batch_size * self.world:  # (an empty remainder after a resume is fine)
                 raise RuntimeError(f"training set has fewer items ({len(ds)}) than one batch ({cfg.batch_size})")
 
     # -- checkpoints ------------------------------------------------------------------------------
@@ -397,6 +401,8 @@ class Trainer:
 
     # -- loop -------------------------------------------------------------------------------------
     def fit(self) -> dict[str, Any]:
+        if self.rank == 0:  # a stale stop/pause request from a previous run must not affect this one
+            (self.out / "control.json").unlink(missing_ok=True)
         try:
             self._setup()
         except torch.cuda.OutOfMemoryError as e:

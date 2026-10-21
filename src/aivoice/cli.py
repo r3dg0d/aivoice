@@ -894,6 +894,10 @@ from .cli_vc import register as _register_vc  # noqa: E402
 
 _register_clone(main)
 _register_vc(main)
+
+from .cli_reproduce import register as _register_reproduce  # noqa: E402
+
+_register_reproduce(main)
 benchmark_cmd.add_command(_benchmark_research)
 benchmark_cmd.add_command(_benchmark_vc)
 

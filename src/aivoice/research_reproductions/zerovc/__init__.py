@@ -17,6 +17,7 @@ class ZeroVCReproduction(Reproduction):
     stages = {"content": "causal content student (variant A: w2v-BERT 2.0 distillation; B: HuBERT k-means CE)",
               "vc": "timbre pooling + causal HiFi-GAN decoder with MPD/MSD, anonymised-source reconstruction"}
     presets = tuple(C.PRESETS)
+    inference_stages = ("vc",)
 
     def config(self, preset: str = "paper", stage: str | None = None, overrides: dict[str, Any] | None = None):
         from ..common.base import apply_overrides

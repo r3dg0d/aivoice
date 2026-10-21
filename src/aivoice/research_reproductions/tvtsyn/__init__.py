@@ -17,6 +17,7 @@ class TVTSynReproduction(Reproduction):
     stages = {"content": "PASR content encoder + factorised VQ on HuBERT-L9 k-means-200 codes",
               "synth": "time-varying timbre (GTM + Slerp) + decoder with pitch/energy predictors, MPD/MSD"}
     presets = tuple(C.PRESETS)
+    inference_stages = ("synth",)
 
     def config(self, preset: str = "paper", stage: str | None = None, overrides: dict[str, Any] | None = None):
         return apply_overrides(C.PRESETS[preset](stage or "synth"), overrides)

@@ -18,6 +18,7 @@ class RTVCReproduction(Reproduction):
               "ema": "causal articulatory (EMA) inverter (MFCC, 200 Hz) on SPARC pseudo-labels",
               "vocoder": "speaker encoder + DDSP vocoder, multi-scale spectral loss"}
     presets = tuple(C.PRESETS)
+    inference_stages = ("inference",)
 
     def config(self, preset: str = "paper", stage: str | None = None, overrides: dict[str, Any] | None = None):
         from ..common.base import apply_overrides

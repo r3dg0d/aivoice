@@ -1126,14 +1126,47 @@ def models_search(query, author, category, library, language, license_, quant, s
         click.echo(f"{r.repo_id[:52]:<52} {r.downloads or 0:>10} {(r.pipeline_tag or '-')[:28]:<28} {' '.join(notes)}")
 
 
+def _repro_info(name: str, as_json: bool) -> bool:
+    from .research_reproductions import registry
+    from .research_reproductions.common.checkpoint import read_meta
+
+    p = Path(name)
+    if p.suffix == ".pt" and p.with_suffix(".json").exists():
+        m = read_meta(p)
+        prov = registry.PROVENANCE.get(m["engine"])
+        d = {"checkpoint": str(p), "provenance": "locally_trained" if m["weights_status"] in (
+             "RETRAINED_PAPER_REPRODUCTION", "FINETUNED_FROM_PUBLIC_BASE") else (prov.value if prov else "imported"),
+             "architecture": prov.value if prov else None,
+             **{k: m.get(k) for k in ("engine", "model_name", "weights_status", "weights_label", "source_status",
+                                       "arch_confidence", "step", "datasets", "component_licenses", "redistributable",
+                                       "config_fingerprint", "sha256", "notes")}}
+    else:
+        try:
+            d = registry.summary(name)
+        except KeyError:
+            return False
+    if as_json:
+        _echo_json(d)
+    else:
+        for k, v in d.items():
+            click.echo(f"{k:<20} {v}")
+    return True
+
+
 @click.command("info")
 @click.argument("repo_id")
 @click.option("--revision", default=None)
 @click.option("--files", "show_files", is_flag=True)
 @click.option("--json", "as_json", is_flag=True)
 def models_info(repo_id, revision, show_files, as_json):
-    """Metadata, compatibility and risks for a repository (nothing is downloaded or executed)."""
+    """Metadata, compatibility and risks for a repository (nothing is downloaded or executed).
+
+    Also accepts a paper-reproduction name (`zerovc-repro`, ...) or a reproduction checkpoint (.pt): then it
+    shows the provenance category (official / paper_reproduction / aivoice_variant / locally_trained / imported)."""
     from .hub.registry import find_known
+
+    if _repro_info(repo_id, as_json):
+        return
 
     known = find_known(repo_id)
     if known and known.repo_id is None:

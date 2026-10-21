@@ -58,6 +58,17 @@ class FeatureCache:
         else:
             raise FeatureCacheError(f"no feature cache {self.dir}")
 
+    @classmethod
+    def open(cls, directory: str | Path) -> FeatureCache:
+        """Open an existing cache directory (as recorded in prepared.json), verifying its key."""
+        d = Path(directory)
+        m = json.loads((d / "meta.json").read_text())
+        spec = FeatureSpec(**m["spec"])
+        c = cls(d.parent, spec, create=False)
+        if c.dir != d:
+            raise FeatureCacheError(f"{d}: directory name does not match its spec key")
+        return c
+
     def _path(self, item_id: str) -> Path:
         h = hashlib.sha1(item_id.encode()).hexdigest()
         return self.dir / h[:2] / f"{h}.npy"

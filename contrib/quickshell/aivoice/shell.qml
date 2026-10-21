@@ -13,7 +13,7 @@ import Quickshell.Io
 ShellRoot {
     id: root
     property bool opened: true
-    property string major: "vc"           // vc | mod | s2s
+    property string major: "vc"           // vc | mod | s2s | res
     property var st: ({ running: false, pid: "", version: "" })
     property var live: ({ running: false })   // `aivoice vc status --json`
     property var engines: []
@@ -41,7 +41,8 @@ ShellRoot {
     property bool fixing: false
     readonly property var modes: ["lowest-latency", "balanced", "best-quality"]
     readonly property var mainEngines: ["auto", "xvc", "rvc", "meanvc2"]
-    readonly property var expEngines: ["stylestream", "streamvoiceanon", "rtvc", "zerovc", "tvtsyn"]
+    readonly property var expEngines: ["stylestream", "streamvoiceanon", "vossa", "rtvc", "zerovc-repro", "tvtsyn-repro", "tvtsyn-aivoice"]
+    property var repro: []
     readonly property var mainPresets: ["natural", "masculine", "feminine", "deep", "warm", "bright", "broadcast", "robotic"]
     function sh(p, args) { const h = Quickshell.env("HOME"), u = Quickshell.env("USER"); p.environment = ({ HOME: h, USER: u, PATH: h + "/.local/bin:" + h + "/.nix-profile/bin:/etc/profiles/per-user/" + u + "/bin:/run/current-system/sw/bin" }); p.command = ["/run/current-system/sw/bin/bash", Quickshell.shellDir + "/run.sh"].concat(args); p.running = true }
     function vname(v) { return v.name || v.display_name || v.id || String(v) }
@@ -75,6 +76,7 @@ ShellRoot {
     Process { id: enginesP; stdout: StdioCollector { onStreamFinished: { try { root.engines = JSON.parse(text) } catch (e) { root.engines = [] } } } }
     Process { id: presetsP; stdout: StdioCollector { onStreamFinished: { try { root.presets = JSON.parse(text) } catch (e) { root.presets = [] } } } }
     Process { id: s2sP; stdout: StdioCollector { onStreamFinished: { try { root.s2s = JSON.parse(text) } catch (e) { root.s2s = ({}) } } } }
+    Process { id: reproP; stdout: StdioCollector { onStreamFinished: { try { root.repro = JSON.parse(text) } catch (e) { root.repro = [] } } } }
     Process { id: modsetP; stdout: StdioCollector { onStreamFinished: {} } }
     Process { id: voicesP; stdout: StdioCollector { onStreamFinished: { try { root.voices = JSON.parse(text); if (!root.voice && root.voices.length) root.voice = root.vname(root.voices[0]) } catch (e) { root.voices = [] } } } }
     Process { id: searchP; stdout: StdioCollector { onStreamFinished: { try { root.results = JSON.parse(text).results || []; root.message = root.results.length + " results" } catch (e) { root.results = []; root.message = "Search failed" } } } }
@@ -89,7 +91,7 @@ ShellRoot {
     Process { id: logP; stdout: StdioCollector { onStreamFinished: root.logText = text } }
     function refresh() { sh(statusP, ["status"]); sh(voicesP, ["voices"]); sh(liveP, ["vcstatus"]); if (root.major === "s2s") sh(s2sP, ["s2sstatus"]) }
     // live metrics every 2 s (the session itself writes them once a second; nothing expensive is polled here)
-    Timer { interval: 2000; running: root.opened; repeat: true; triggeredOnStart: true; onTriggered: { root.sh(statusP, ["status"]); if (!liveP.running) root.sh(liveP, ["vcstatus"]); if (root.major === "s2s" && !s2sP.running) root.sh(s2sP, ["s2sstatus"]); if (root.tab === "logs") root.sh(logP, ["log"]) } }
+    Timer { interval: 2000; running: root.opened; repeat: true; triggeredOnStart: true; onTriggered: { root.sh(statusP, ["status"]); if (!liveP.running) root.sh(liveP, ["vcstatus"]); if (root.major === "s2s" && !s2sP.running) root.sh(s2sP, ["s2sstatus"]); if (root.major === "res" && !reproP.running) root.sh(reproP, ["repro"]); if (root.tab === "logs") root.sh(logP, ["log"]) } }
     // engine availability changes rarely: every 60 s
     Timer { interval: 60000; running: root.opened; repeat: true; triggeredOnStart: true; onTriggered: if (!enginesP.running) root.sh(enginesP, ["vcengines"]) }
     Component.onCompleted: { sh(inputsP, ["inputs"]); sh(voicesP, ["voices"]); sh(doctorP, ["doctor"]); sh(presetsP, ["presets"]) }
@@ -136,9 +138,9 @@ ShellRoot {
             }
             // the three systems
             RowLayout { Layout.fillWidth: true; spacing: 6
-                Repeater { model: [["vc", "󰗅 VOICE CONVERSION"], ["mod", "󰎈 VOICE MODULATION"], ["s2s", "󰗋 SPEECH-TO-SPEECH"]]
+                Repeater { model: [["vc", "󰗅 VOICE CONVERSION"], ["mod", "󰎈 VOICE MODULATION"], ["s2s", "󰗋 SPEECH-TO-SPEECH"], ["res", "󰙨 RESEARCH"]]
                     GalaxyButton { required property var modelData; text: modelData[1]; selected: root.major === modelData[0]; Layout.fillWidth: true; font.pixelSize: 11
-                        onClicked: { root.major = modelData[0]; if (root.major === "s2s") root.sh(s2sP, ["s2sstatus"]) } } }
+                        onClicked: { root.major = modelData[0]; if (root.major === "s2s") root.sh(s2sP, ["s2sstatus"]); if (root.major === "res") root.sh(reproP, ["repro"]) } } }
             }
             // hero + live metrics (shared by VC and modulation: both use aivoice-virtual-mic)
             Card {
@@ -257,6 +259,37 @@ ShellRoot {
                         background: Rectangle { radius: 10; color: "#0b0914"; border.color: pname.activeFocus ? "#b46bff" : "#26223a" } }
                     GalaxyButton { text: "Save preset"; enabled: pname.text.length > 0 && !actP.running
                         onClicked: { root.sh(actP, ["presetsave", pname.text, root.preset, String(Math.round(root.strength))].concat(root.advArgs())); root.sh(presetsP, ["presets"]) } }
+                }
+            }
+
+            // ============================ RESEARCH (paper reproductions) ============================
+            Card { visible: root.major === "res"; implicitHeight: resCol.implicitHeight + 28
+                ColumnLayout { id: resCol; anchors.fill: parent; anchors.margins: 14; spacing: 8
+                    Label2 { text: "PAPER REPRODUCTIONS · EXPERIMENTAL · NEVER OFFICIAL WEIGHTS" }
+                    Repeater { model: root.repro
+                        Rectangle { required property var modelData; Layout.fillWidth: true; radius: 8; color: "#151127"
+                            border.color: modelData.state === "Training" ? "#5b3d99" : modelData.state === "Failed" ? "#7a2f45" : "#2a2344"
+                            implicitHeight: rcol.implicitHeight + 16
+                            ColumnLayout { id: rcol; anchors.fill: parent; anchors.margins: 8; spacing: 3
+                                RowLayout { spacing: 8
+                                    Text { text: modelData.name; font.family: "NullType"; font.pixelSize: 12; color: "#e8e4ff" }
+                                    Text { text: modelData.state + (modelData.stale ? " (no update > 10 min)" : ""); font.family: "NullType"; font.pixelSize: 11
+                                        color: ({ "Ready": "#7fd1a8", "Training": "#b79cff", "Failed": "#ff8fa8", "Blocked": "#ff8fa8", "Checkpoint available": "#e6c07b" })[modelData.state] || "#9a96b3" }
+                                    Item { Layout.fillWidth: true }
+                                    Text { text: modelData.provenance + " · " + modelData.source_status; font.family: "NullType"; font.pixelSize: 10; color: "#8a84a8" } }
+                                Text { visible: !!modelData.run && modelData.run.step !== undefined; font.family: "NullType"; font.pixelSize: 10; color: "#c9c3e6"
+                                    text: { const r = modelData.run || {}; const l = r.loss || {}; const k = Object.keys(l)[0];
+                                        return "step " + r.step + "/" + r.max_steps + (k ? "  ·  " + k + " " + l[k] : "") + "  ·  " + (r.samples_per_s || 0) + " samples/s"
+                                            + "  ·  ETA " + (r.eta_s ? Math.round(r.eta_s / 60) + " min" : "–") + "  ·  " + (r.gpu || "cpu") + (r.vram_gib ? " " + r.vram_gib + " GiB" : "") } }
+                                Text { visible: !!modelData.checkpoint || !!modelData.why; Layout.fillWidth: true; wrapMode: Text.Wrap; font.family: "NullType"; font.pixelSize: 10; color: "#8a84a8"
+                                    text: (modelData.checkpoint ? "checkpoint " + modelData.checkpoint + " · " + (modelData.weights || "") : (modelData.why || "")) }
+                                RowLayout { visible: !!modelData.output && (modelData.state === "Training"); spacing: 6
+                                    GalaxyButton { implicitHeight: 26; text: (modelData.run || {}).state === "paused" ? "resume" : "pause"; enabled: !actP.running
+                                        onClicked: root.sh(actP, ["reprocontrol", (modelData.run || {}).state === "paused" ? "resume" : "pause", modelData.output]) }
+                                    GalaxyButton { implicitHeight: 26; text: "stop"; enabled: !actP.running; onClicked: root.sh(actP, ["reprocontrol", "stop", modelData.output]) } }
+                            } } }
+                    Text { Layout.fillWidth: true; wrapMode: Text.Wrap; font.family: "NullType"; font.pixelSize: 10; color: "#8a84a8"
+                        text: "Training runs in its own background process, never in this widget: `aivoice reproduce train NAME ... --background`. Pause/stop write the run's control file; a checkpoint is saved first." }
                 }
             }
 

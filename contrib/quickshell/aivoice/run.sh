@@ -2,7 +2,8 @@
 # aivoice widget backend. run.sh start VOICE MODE [ENGINE] | modstart PRESET STRENGTH [--flag v ...] | stop | status |
 #   vcstatus | vcengines | presets | modset PRESET STRENGTH [k=v ...] | bypass | presetsave NAME PRESET STRENGTH [--flag v ...] |
 #   s2sstatus | s2sstart | s2sstop | s2sasr NAME | s2spreset NAME | s2sllm on|off |
-#   voices | doctor | devices | search Q | install ID | setup | models-install
+#   voices | doctor | devices | search Q | install ID | setup | models-install |
+#   repro | reprocontrol pause|resume|stop OUTPUT   (paper reproductions; training runs as its own background process)
 # Every live mode (VC, modulation) plays into the same aivoice-virtual-mic; only one runs at a time.
 set -u
 AIV="${AIVOICE_BIN:-$HOME/.local/bin/aivoice}"
@@ -90,5 +91,7 @@ case "${1:-}" in
       *) echo "No automatic fix for: ${2:-?}" ;;
     esac ;;
   log) tail -n 60 "$log" 2>/dev/null || echo "(no log yet)" ;;
-  *) echo "usage: run.sh start VOICE [MODE] [ENGINE] [DENOISE]|modstart PRESET STRENGTH|stop|status|vcstatus|vcengines|presets|modset|bypass|presetsave|s2sstatus|s2sstart|s2sstop|voices|doctor|devices|search Q|install ID|setup|models-install|log" >&2; exit 2 ;;
+  repro) "$AIV" reproduce panel 2>/dev/null || echo "[]" ;;
+  reprocontrol) "$AIV" reproduce control "${2:-}" --output "${3:-}" 2>&1 | tail -1 ;;
+  *) echo "usage: run.sh start VOICE [MODE] [ENGINE] [DENOISE]|modstart PRESET STRENGTH|stop|status|vcstatus|vcengines|presets|modset|bypass|presetsave|s2sstatus|s2sstart|s2sstop|voices|doctor|devices|search Q|install ID|setup|models-install|log|repro|reprocontrol" >&2; exit 2 ;;
 esac
