@@ -289,7 +289,8 @@ def exp_status(as_json, watch):
     while True:
         s = _read_status() if _engine_pid() else None
         if as_json:
-            _echo_json({"enabled": st.get("experimental.enabled"), "engine": s, "settings": st.load()})
+            _echo_json({"enabled": st.get("experimental.enabled"), "engine": s, "settings": st.load(),
+                        "asr_available": available_backends()})
             return
         if watch:
             click.clear()

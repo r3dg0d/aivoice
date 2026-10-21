@@ -138,6 +138,60 @@ def search_cmd(query, provider, page, details, as_json, pick):
         click.echo(f"\nSelected: {r.name}\nid={r.id}\nurl={r.download_url}")
 
 
+def _vc_options(f):
+    """Options for the shared live pipeline (any engine; see `aivoice vc engines`)."""
+    from .cli_vc import VC_ENGINE_CHOICES
+
+    for opt in reversed([
+        click.option("--engine", "vc_engine", type=click.Choice(VC_ENGINE_CHOICES), default=None,
+                     help="Live engine on aivoice's shared pipeline (default: the previous MeanVC2/RVC runtime path)"),
+        click.option("--priority", default="balanced", show_default=True,
+                     help="For --engine auto: balanced|latency|gaming|similarity|naturalness|streaming-quality|low-vram|cpu"),
+        click.option("--input", "input_device", default=None, help="Microphone (PipeWire source); never the aivoice mic"),
+        click.option("--pitch", type=float, default=None, help="Transpose semitones (engines that support it, e.g. RVC)"),
+        click.option("--index-rate", type=float, default=None, help="RVC FAISS index blend 0..1"),
+        click.option("--modulate", "post_preset", default=None, help="Post-VC modulation preset (e.g. warm, broadcast)"),
+        click.option("--modulate-strength", type=float, default=None),
+        click.option("--denoise", type=float, default=None, help="Pre-VC noise suppression 0..1"),
+        click.option("--fallback", default="dsp", show_default=True, help="Comma list tried when the engine fails"),
+        click.option("--test-input", type=click.Path(path_type=Path, exists=True, dir_okay=False), default=None,
+                     help="Use a WAV as the microphone (paced in real time)"),
+        click.option("--duration", type=float, default=None, help="Stop after N seconds"),
+    ]):
+        f = opt(f)
+    return f
+
+
+def _run_unified(vc_engine, *, reference, profile, voice, mode, device, priority, input_device, pitch, index_rate,
+                 post_preset, modulate_strength, denoise, fallback, test_input, duration, output="virtual"):
+    from .cli_vc import _input_device, _strength, build_engine, resolve_target, run_live_unified
+    from .vc.base import StreamOptions
+    from .vc.live import LiveConfig
+
+    if voice or reference:
+        target = resolve_target(voice, Path(reference) if reference else None)
+    elif profile:
+        target = resolve_target(None, _resolve_reference(None, profile, None))
+    else:
+        target = None
+    if vc_engine in ("dsp", "passthrough") or target is None:
+        if vc_engine not in ("dsp", "passthrough"):
+            raise click.ClickException("voice conversion needs --voice/--reference; for your own voice use `aivoice modulate`")
+    eng, note = build_engine(vc_engine, target=target, priority=priority, quality=mode)
+    opts = StreamOptions(pitch_semitones=pitch or 0.0, index_rate=index_rate, quality=mode, device=device)
+    eng.options = opts
+    cfg = LiveConfig(mode="voice_conversion" if eng.capabilities().task == "voice_conversion" else "modulation",
+                     engine=eng.capabilities().name, voice=target.name if target else None, quality=mode,
+                     input_device=_input_device(input_device), pre={"denoise": denoise} if denoise else {},
+                     post_preset=post_preset, post_strength=_strength(modulate_strength) if modulate_strength is not None else
+                     (0.65 if post_preset else 0.0), fallback=[x.strip() for x in fallback.split(",") if x.strip()],
+                     stream_options=opts)
+    click.echo(f"Engine    {eng.capabilities().display_name}" + (f"   [{note}]" if note else ""))
+    click.echo(f"Voice     {cfg.voice or '-'}   quality {mode}   fallback {' -> '.join(cfg.fallback + ['passthrough'])}")
+    click.echo(f"Input     {cfg.input_device or '(default source)'}")
+    return run_live_unified(engine=eng, cfg=cfg, target=target, input_file=test_input, output=output, duration=duration)
+
+
 @main.command("live")
 @click.option("--reference", "reference", type=click.Path(path_type=Path, exists=True), default=None)
 @click.option("--profile", default=None, help="Legacy XDG profile name")
@@ -146,10 +200,26 @@ def search_cmd(query, provider, page, details, as_json, pick):
 @click.option("--device", default="cuda", show_default=True, help="cuda|cpu (CUDA preferred)")
 @click.option("--chunk-ms", type=int, default=None, help="Override chunk size (ms)")
 @click.option("--buffer-chunks", type=int, default=None)
+@click.option("--output-to", type=click.Choice(["virtual", "default", "null"]), default="virtual", show_default=True,
+              help="Shared pipeline only: aivoice-virtual-mic, your speakers, or nowhere (benchmarks)")
+@_vc_options
 @click.option("--consent-ack", is_flag=True)
-def live_cmd(reference, profile, voice, mode, device, chunk_ms, buffer_chunks, consent_ack):
-    """Real-time mic conversion (spawns MeanVC2 runtime when installed)."""
+def live_cmd(reference, profile, voice, mode, device, chunk_ms, buffer_chunks, output_to, vc_engine, priority, input_device,
+             pitch, index_rate, post_preset, modulate_strength, denoise, fallback, test_input, duration, consent_ack):
+    """Real-time mic conversion.
+
+    \b
+    aivoice live --engine xvc --voice NAME          shared pipeline, X-VC resident
+    aivoice live --engine auto --priority gaming --voice NAME
+    aivoice live --voice NAME                       previous path: MeanVC2 run_rt.py
+    """
     require_consent(ack=consent_ack)
+    if vc_engine:
+        _run_unified(vc_engine, reference=reference, profile=profile, voice=voice, mode=mode, device=device, priority=priority,
+                     input_device=input_device, pitch=pitch, index_rate=index_rate, post_preset=post_preset,
+                     modulate_strength=modulate_strength, denoise=denoise, fallback=fallback, test_input=test_input,
+                     duration=duration, output=output_to)
+        return
     ref = _resolve_reference(reference, profile, voice)
     if chunk_ms or buffer_chunks:
         click.echo(
@@ -174,12 +244,43 @@ def live_cmd(reference, profile, voice, mode, device, chunk_ms, buffer_chunks, c
 @click.option("--mode", type=_mode_choice(), default="balanced", show_default=True)
 @click.option("--device", default="cuda", show_default=True)
 @click.option("--backend", type=click.Choice(["auto", "meanvc2", "passthrough"]), default="auto")
+@click.option("--engine", "vc_engine", default=None,
+              help="Stream the file through a live engine (xvc, rvc, meanvc2, auto, ...): same code path as live")
+@click.option("--priority", default="balanced", show_default=True)
 @click.option("--consent-ack", is_flag=True)
-def file_cmd(input_wav, reference, profile, voice, output, mode, device, backend, consent_ack):
+def file_cmd(input_wav, reference, profile, voice, output, mode, device, backend, vc_engine, priority, consent_ack):
     """Convert a wav file using a reference speaker."""
     require_consent(ack=consent_ack)
-    ref = _resolve_reference(reference, profile, voice)
     out = output or Path(input_wav).with_name(Path(input_wav).stem + "_aivoice.wav")
+    if vc_engine:
+        from .audio_io import read_wav
+        from .cli_vc import build_engine, resolve_target
+        from .evaluation.metrics import write_labeled_wav
+        from .vc.base import StreamOptions
+        from .vc.live import PIPE_SR, LiveConfig, LivePipeline
+
+        target = resolve_target(voice, Path(reference) if reference else None) or (
+            resolve_target(None, _resolve_reference(None, profile, None)) if profile else None)
+        eng, note = build_engine(vc_engine, target=target, priority=priority, quality=mode)
+        opts = StreamOptions(quality=mode, device=device)
+        eng.options = opts
+        pipe = LivePipeline(LiveConfig(engine=eng.capabilities().name, quality=mode, fallback=[], stream_options=opts), eng,
+                            target=target)
+        try:
+            pipe.start()
+            x, sr = read_wav(Path(input_wav))
+            y = pipe.run_array(x, sr)
+            eng.unload()
+        except Exception as e:  # noqa: BLE001
+            raise click.ClickException(str(e)) from e
+        if pipe.stats.fallbacks:
+            raise click.ClickException(f"engine failed: {pipe.stats.fallbacks[0]['reason']}")
+        write_labeled_wav(out, y, PIPE_SR, comment=f"aivoice voice conversion ({eng.capabilities().name}); synthetic")
+        click.echo(f"{out}" + (f"  [{note}]" if note else ""))
+        click.echo(f"engine p95 {eng.timing_summary().get('p95_ms')} ms/chunk; output includes the engine's latency "
+                   f"({eng.capabilities().algorithmic_latency_ms} ms) at the start", err=True)
+        return
+    ref = _resolve_reference(reference, profile, voice)
     be = None if backend == "auto" else backend
     try:
         convert_file(Path(input_wav), ref, out, mode=mode, device=device, backend=be)
@@ -200,8 +301,13 @@ def file_cmd(input_wav, reference, profile, voice, output, mode, device, backend
 @click.option("--device", default="cuda")
 @click.option("--consent-ack", is_flag=True)
 @click.option("--setup-only", is_flag=True, help="Only create null sink / remap source")
-@click.option("--engine", "rt_engine", type=click.Choice(["rvc", "meanvc2"]), default=None,
-              help="Realtime engine (default: the voice's saved choice; RVC v2 when it has a .pth)")
+@click.option("--engine", "rt_engine",
+              type=click.Choice(["rvc", "meanvc2", "auto", "xvc", "dsp", "stylestream", "streamvoiceanon"]), default=None,
+              help="Realtime engine (default: the voice's saved choice; RVC v2 when it has a .pth). rvc/meanvc2 use "
+                   "their own runtimes unless --unified; the others always run on aivoice's shared pipeline")
+@click.option("--unified", is_flag=True, help="Run rvc/meanvc2 on the shared pipeline too (fallback, status, modulation)")
+@click.option("--denoise", type=float, default=None, help="Shared pipeline: pre-VC noise suppression 0..1")
+@click.option("--priority", default="balanced", show_default=True, help="For --engine auto")
 def virtualmic_cmd(
     reference,
     profile,
@@ -215,6 +321,9 @@ def virtualmic_cmd(
     consent_ack,
     setup_only,
     rt_engine,
+    unified,
+    priority,
+    denoise,
 ):
     """Virtual mic + live conversion. Supports --search / --voice / interactive pick."""
     require_consent(ack=consent_ack)
@@ -287,6 +396,11 @@ def virtualmic_cmd(
     click.echo()
     if setup_only:
         click.echo("Ready (setup-only)")
+        return
+    if rt_engine and (unified or rt_engine not in ("rvc", "meanvc2")):
+        _run_unified(rt_engine, reference=reference, profile=profile, voice=voice, mode=mode, device=device, priority=priority,
+                     input_device=None, pitch=None, index_rate=None, post_preset=None, modulate_strength=None,
+                     denoise=denoise or None, fallback="dsp", test_input=None, duration=None, output="virtual")
         return
     try:
         from .pipeline import run_live_rvc, voice_rt_settings
@@ -775,9 +889,13 @@ _register_experimental(main, models_group)
 
 from .cli_clone import benchmark_research as _benchmark_research  # noqa: E402
 from .cli_clone import register as _register_clone  # noqa: E402
+from .cli_vc import benchmark_vc as _benchmark_vc  # noqa: E402
+from .cli_vc import register as _register_vc  # noqa: E402
 
 _register_clone(main)
+_register_vc(main)
 benchmark_cmd.add_command(_benchmark_research)
+benchmark_cmd.add_command(_benchmark_vc)
 
 
 if __name__ == "__main__":

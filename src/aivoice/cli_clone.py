@@ -381,15 +381,26 @@ def engines_group():
 def engines_list(as_json):
     from .engines.registry import all_status
 
+    from .vc.engines import all_vc_status
+
     st = all_status()
+    vc = all_vc_status()
     if as_json:
-        _json([{"name": s.name, "ready": s.ready, "unavailable": s.unavailable, **s.caps.to_dict()} for s in st])
+        _json({"synthesis": [{"name": s.name, "ready": s.ready, "unavailable": s.unavailable, **s.caps.to_dict()} for s in st],
+               "live": [s.to_dict() for s in vc]})
         return
+    click.echo("Synthesis / offline engines (clone, compare)")
     for s in st:
         c = s.caps
-        click.echo(f"{s.name:<12} {'/'.join(c.tasks):<4} {'ready' if s.ready else 'not ready':<10} {c.display_name}")
+        click.echo(f"  {s.name:<14} {'/'.join(c.tasks):<4} {'READY' if s.ready else 'NOT READY':<20} {c.display_name}")
         if not s.ready:
-            click.echo(f"{'':<12} -> {s.unavailable}")
+            click.echo(f"  {'':<14} -> {s.unavailable}")
+    click.echo("\nLive voice conversion / modulation (live, virtualmic, modulate)")
+    for s in vc:
+        task = "vc" if s.caps.task == "voice_conversion" else "mod"
+        click.echo(f"  {s.name:<15} {task:<4} {s.state.value:<20} {s.caps.display_name}")
+        if s.state.value not in ("READY",):
+            click.echo(f"  {'':<15} -> {s.detail[:150]}")
 
 
 @engines_group.command("capabilities")
@@ -407,7 +418,17 @@ def engines_info(name):
     try:
         s = status(name)
     except Exception as e:  # noqa: BLE001
-        raise _fail(e) from e
+        from .vc.engines import get_vc_engine
+
+        try:
+            vs = get_vc_engine(name).status()
+        except Exception:  # noqa: BLE001
+            raise _fail(e) from e
+        for k, v in vs.caps.to_dict().items():
+            if v not in (None, "", (), [], {}):
+                click.echo(f"{k:<26} {v}")
+        click.echo(f"{'state':<26} {vs.state.value}  ({vs.detail})")
+        return
     for k, v in s.caps.to_dict().items():
         if v not in (None, "", (), [], {}):
             click.echo(f"{k:<26} {v}")
@@ -456,15 +477,37 @@ def research_citations():
     click.echo(bibtex())
 
 
+@research_group.command("long-session")
+@click.option("--minutes", type=float, default=30.0, show_default=True)
+@click.option("--paced", is_flag=True, help="Real-time device clock (takes the full duration)")
+@click.option("--preset", default="masculine", show_default=True)
+@click.option("--output", type=click.Path(path_type=Path), default=None)
+def research_long_session(minutes, paced, preset, output):
+    """Experiment O: stream N minutes through the live path (DSP modulation) and report drift / memory / NaNs."""
+    from .modulation.presets import get_preset
+    from .vc.engines import DspEngine
+    from .vc.longsession import run_long_session
+
+    r = run_long_session(minutes, lambda: DspEngine(get_preset(preset).params()), label=f"DSP {preset}", paced=paced,
+                         window_s=min(120.0, max(5.0, minutes * 6)), out=output)
+    _json({k: v for k, v in r.items() if k != "windows"})
+
+
 @research_group.command("experiments")
 @click.option("--run", "run_ids", default=None, help="Comma list of experiment ids to run now (C,F,G); default: show results")
 @click.option("--output", type=click.Path(path_type=Path), default=None, help="Default: docs/research/experiments if present")
 def research_experiments(run_ids, output):
     from .evaluation import experiments as ex
 
+    from .evaluation import experiments_vc as exvc
+
     out = output or (Path("docs/research/experiments") if Path("docs/research").is_dir() else Path("research-experiments"))
     if run_ids:
-        for r in ex.run([i.strip() for i in run_ids.split(",")], out):
+        ids = [i.strip() for i in run_ids.split(",")]
+        vc_ids = [i for i in ids if i in exvc.VC_EXPERIMENTS or i in {b[0] for b in exvc.VC_BLOCKED}]
+        other = [i for i in ids if i not in vc_ids]
+        results = (ex.run(other, out) if other else []) + (exvc.run(vc_ids, out) if vc_ids else [])
+        for r in results:
             click.echo(f"{r.id} {r.status}: {r.decision}")
         click.echo(f"written to {out}")
         return
@@ -473,6 +516,10 @@ def research_experiments(run_ids, output):
         return
     for f in sorted(out.glob("*.json")):
         d = json.loads(f.read_text())
+        if "id" not in d:  # long-session reports (O-*.json) have their own format
+            click.echo(f"O   measured  {d.get('label')}: RSS {d.get('rss_start_mib')} -> {d.get('rss_end_mib')} MiB, "
+                       f"NaN blocks {d.get('nan_blocks')}, fallbacks {d.get('fallbacks')}")
+            continue
         click.echo(f"{d['id']:<3} {d['status']:<9} {d['title']}")
         click.echo(f"    {d['decision']}")
 
