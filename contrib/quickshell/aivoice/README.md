@@ -1,6 +1,10 @@
 # AI Voice Quickshell widget
 
-Galaxy-styled [Quickshell](https://quickshell.org) panel for aivoice: voice library, engine/pitch/index controls (RVC v2 / MeanVC2), input picker with level meter, doctor/health check with one-click fixes, and virtual-mic start/stop.
+Galaxy-styled [Quickshell](https://quickshell.org) panel for aivoice with three modes - **Voice conversion** (voice
+library, engine from real status: Auto / X-VC / RVC / MeanVC2 + experimental engines, quality, pitch/index, noise
+suppression), **Voice modulation** (presets, strength, advanced attribute sliders applied live, A/B bypass, save
+preset) and **Speech-to-speech** (ASR / LLM / preset) - plus input picker with level meter, live latency / RTF / GPU /
+VRAM metrics, doctor/health check with one-click fixes, and virtual-mic start/stop. Details: `docs/quickshell.md`.
 
 ## Install
 

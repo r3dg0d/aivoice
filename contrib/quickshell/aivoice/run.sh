@@ -1,21 +1,55 @@
 #!/usr/bin/env bash
-# aivoice widget backend. run.sh start VOICE MODE | stop | status | voices | doctor | devices | search Q | install Q IDX | setup | models-install
+# aivoice widget backend. run.sh start VOICE MODE [ENGINE] | modstart PRESET STRENGTH [--flag v ...] | stop | status |
+#   vcstatus | vcengines | presets | modset PRESET STRENGTH [k=v ...] | bypass | presetsave NAME PRESET STRENGTH [--flag v ...] |
+#   s2sstatus | s2sstart | s2sstop | s2sasr NAME | s2spreset NAME | s2sllm on|off |
+#   voices | doctor | devices | search Q | install ID | setup | models-install
+# Every live mode (VC, modulation) plays into the same aivoice-virtual-mic; only one runs at a time.
 set -u
-AIV="$HOME/.local/bin/aivoice"
+AIV="${AIVOICE_BIN:-$HOME/.local/bin/aivoice}"
 A="$HOME/.local/share/aivoice"
 export PATH="$A/gcroot-pulse/bin:$A/gcroot-espeak/bin:$HOME/.local/bin:$HOME/.nix-profile/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:$PATH"
 st="${XDG_STATE_HOME:-$HOME/.local/state}/aivoice-widget"; mkdir -p "$st"
-log="$HOME/.cache/aivoice-widget.log"; pidf="$st/virtualmic.pid"
+log="$HOME/.cache/aivoice-widget.log"; mkdir -p "$HOME/.cache"; pidf="$st/virtualmic.pid"
 running() { [ -f "$pidf" ] && kill -0 "$(cat "$pidf")" 2>/dev/null; }
 case "${1:-}" in
   start)
     [ -e "$HOME/.cache/aivoice-test.lock" ] && { echo "Busy: a test is running, try again in a minute"; exit 3; }
     running && { echo "Already running (pid $(cat "$pidf"))"; exit 0; }
     [ -n "${2:-}" ] || { echo "Pick a voice first"; exit 2; }
-    echo "== $(date '+%F %r') virtualmic --voice ${2} --mode ${3:-balanced}" >>"$log"
-    setsid "$AIV" virtualmic --voice "$2" --mode "${3:-balanced}" --consent-ack </dev/null >>"$log" 2>&1 &
+    eng="${4:-}"; extra=()
+    case "$eng" in ""|default) ;; *) extra=(--engine "$eng") ;; esac
+    [ -n "${5:-}" ] && [ "${5}" != "0" ] && extra+=(--denoise "$5")
+    echo "== $(date '+%F %r') virtualmic --voice ${2} --mode ${3:-balanced} ${extra[*]:-}" >>"$log"
+    setsid "$AIV" virtualmic --voice "$2" --mode "${3:-balanced}" "${extra[@]}" --consent-ack </dev/null >>"$log" 2>&1 &
     echo $! >"$pidf"; sleep 1.5
     running && echo "Virtual mic live: ${2} → select 'aivoice' as your mic" || { echo "virtualmic exited — see log"; rm -f "$pidf"; } ;;
+  modstart)
+    running && { echo "Already running (pid $(cat "$pidf")) - stop it first"; exit 0; }
+    p="${2:-natural}"; s="${3:-65}"; shift 3 2>/dev/null || shift $#
+    echo "== $(date '+%F %r') modulate $p --strength $s $*" >>"$log"
+    setsid "$AIV" modulate "$p" --strength "$s" --quiet "$@" </dev/null >>"$log" 2>&1 &
+    echo $! >"$pidf"; sleep 1.0
+    running && echo "Modulation live: $p @ $s → select 'aivoice' as your mic" || { echo "modulate exited — see log"; rm -f "$pidf"; } ;;
+  vcstatus) "$AIV" vc status --json 2>/dev/null || echo '{"running":false}' ;;
+  vcengines) "$AIV" vc engines --json 2>/dev/null || echo '[]' ;;
+  presets) "$AIV" modulate preset list --json 2>/dev/null || echo '[]' ;;
+  modset)
+    p="${2:-}"; s="${3:-}"; shift 3 2>/dev/null || shift $#; args=()
+    [ -n "$p" ] && args+=(--preset "$p"); [ -n "$s" ] && args+=(--strength "$s")
+    for kv in "$@"; do args+=(--param "$kv"); done
+    "$AIV" vc set "${args[@]}" 2>&1 | tail -1 ;;
+  bypass) "$AIV" vc control toggle-bypass 2>&1 | tail -1 ;;
+  presetsave) n="$2"; p="$3"; s="$4"; shift 4; "$AIV" modulate preset save "$n" --from "$p" --strength "$s" "$@" 2>&1 | tail -1 ;;
+  s2sstatus) "$AIV" experimental status --json 2>/dev/null || echo '{}' ;;
+  s2sstart)
+    echo "== $(date '+%F %r') experimental start" >>"$log"
+    "$AIV" experimental enable >/dev/null 2>&1
+    setsid "$AIV" experimental start --quiet --consent-ack </dev/null >>"$log" 2>&1 &
+    sleep 1.5; echo "Speech-to-speech starting (see Logs)" ;;
+  s2sstop) "$AIV" experimental stop 2>&1 | tail -1 ;;
+  s2sasr) "$AIV" experimental asr use "$2" 2>&1 | tail -1 ;;
+  s2spreset) "$AIV" experimental preset use "$2" 2>&1 | tail -1 ;;
+  s2sllm) if [ "${2:-off}" = on ]; then "$AIV" llm enable 2>&1 | tail -1; else "$AIV" llm disable 2>&1 | tail -1; fi ;;
   stop) if running; then kill -- -"$(cat "$pidf")" 2>/dev/null || kill "$(cat "$pidf")"; rm -f "$pidf"; echo "Stopped"; else echo "Not running"; fi ;;
   status) printf '{"running":%s,"pid":"%s","version":"%s"}\n' "$(running && echo true || echo false)" "$(cat "$pidf" 2>/dev/null)" "$("$AIV" --version 2>/dev/null | awk '{print $NF}')" ;;
   voices) "$AIV" voices list --json 2>/dev/null || echo "[]" ;;
@@ -56,5 +90,5 @@ case "${1:-}" in
       *) echo "No automatic fix for: ${2:-?}" ;;
     esac ;;
   log) tail -n 60 "$log" 2>/dev/null || echo "(no log yet)" ;;
-  *) echo "usage: run.sh start VOICE [MODE]|stop|status|voices|doctor|devices|search Q|install Q IDX|setup|models-install|log" >&2; exit 2 ;;
+  *) echo "usage: run.sh start VOICE [MODE] [ENGINE] [DENOISE]|modstart PRESET STRENGTH|stop|status|vcstatus|vcengines|presets|modset|bypass|presetsave|s2sstatus|s2sstart|s2sstop|voices|doctor|devices|search Q|install ID|setup|models-install|log" >&2; exit 2 ;;
 esac
