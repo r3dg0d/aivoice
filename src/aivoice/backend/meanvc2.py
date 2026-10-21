@@ -54,6 +54,9 @@ class MeanVC2Backend:
                 str(dest),
                 "--steps",
                 str(self.mode.steps),
+                # infer_e2e.py defaults to --device cpu; without this the file path never used the GPU
+                "--device",
+                self.device,
             ]
         elif rt.is_file():
             cmd = [

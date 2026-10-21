@@ -5,6 +5,10 @@ features blended with the FAISS index, net_g inference, then SOLA alignment + cr
 blocks. Audio I/O is sounddevice on the ALSA default devices; aivoice pins the streams
 (capture -> real mic, playback -> aivoice_sink) through PipeWire metadata.
 
+The block processor is :class:`RvcRealtime`, so the same code also serves aivoice's unified
+streaming worker (vc/stream_worker.py ``rvc`` handler) without this file's own audio I/O.
+It must keep importing nothing from aivoice.
+
 Usage: python rt_worker.py --model x.pth [--index x.index] [--pitch 12] [--index-rate 0.5]
        [--block 0.25] [--extra 0.6] [--crossfade 0.05] [--threshold -50] [--input-wav f --output-wav g]
 """
@@ -16,6 +20,125 @@ import sys
 import time
 
 import numpy as np
+
+
+class RvcRealtime:
+    """Persistent RVC model + streaming state. ``process(block)`` takes exactly ``self.block`` samples at ``sr``."""
+
+    def __init__(self, *, model: str, index: str = "", pitch: float = 0.0, index_rate: float = 0.5, protect: float = 0.33,
+                 block: float = 0.25, extra: float = 0.6, crossfade: float = 0.05, threshold: float = -50.0,
+                 device: str = "cuda", sr: int = 48000, log: bool = True) -> None:
+        import logging
+        import warnings
+
+        warnings.filterwarnings("ignore")
+        logging.disable(logging.WARNING)  # fairseq/rvc_python INFO+WARNING chatter
+        import faiss
+        import torch
+        import torchaudio.functional as AF
+        from rvc_python.infer import RVCInference
+
+        self.torch, self.AF = torch, AF
+        self.dev = "cuda:0" if device == "cuda" and torch.cuda.is_available() else "cpu:0"
+        self.pitch, self.index_rate, self.protect = float(pitch), float(index_rate), float(protect)
+        self.block_s = float(block)
+        self.log = log
+        rvc = RVCInference(device=self.dev)
+        rvc.load_model(model, version="v2", index_path=index)
+        vc = rvc.vc
+        from rvc_python.modules.vc.utils import load_hubert
+
+        if vc.hubert_model is None:
+            vc.hubert_model = load_hubert(vc.config, vc.lib_dir)
+        self.hubert, self.net_g, self.pipe = vc.hubert_model, vc.net_g, vc.pipeline
+        self.tgt_sr, self.if_f0, self.version = vc.tgt_sr, vc.if_f0, vc.version
+        self.is_half = vc.config.is_half
+
+        self.index = self.big_npy = None
+        if index and os.path.exists(index) and index_rate > 0:
+            self.index = faiss.read_index(index)
+            self.big_npy = self.index.reconstruct_n(0, self.index.ntotal)
+
+        self.SR = sr
+        zc = sr // 100  # 10 ms grid
+        self.block = int(round(block * sr / zc)) * zc
+        self.xfade = int(round(crossfade * sr / zc)) * zc
+        self.sola_search = zc
+        self.extra = int(round(extra * sr / zc)) * zc
+        self.total = self.extra + self.xfade + self.sola_search + self.block
+        self.fade_in = (np.sin(0.5 * np.pi * np.linspace(0, 1, self.xfade)) ** 2).astype(np.float32)
+        self.fade_out = 1 - self.fade_in
+        self.gate = 10 ** (threshold / 20)
+        self.tdev = torch.device(self.dev)
+        self.sid = torch.tensor([0], device=self.tdev).long()
+        self.stats = {"n": 0, "over": 0}
+        self.reset()
+
+    def reset(self) -> None:
+        self.buf = np.zeros(self.total, dtype=np.float32)
+        self.sola_buf = np.zeros(self.xfade, dtype=np.float32)
+
+    def convert(self, x48: np.ndarray) -> np.ndarray:
+        torch, AF = self.torch, self.AF
+        x = torch.from_numpy(x48).to(self.tdev)
+        x16 = AF.resample(x, self.SR, 16000)
+        x16 = AF.highpass_biquad(x16, 16000, 48.0)
+        x16n = x16.float().cpu().numpy()
+        p_len = x16n.shape[0] // 160
+        pitch = pitchf = None
+        if self.if_f0:
+            coarse, f0 = self.pipe.get_f0("rt", x16n, p_len, self.pitch, "rmvpe", 3)
+            pitch = torch.tensor(coarse[:p_len], device=self.tdev).unsqueeze(0).long()
+            pitchf = torch.tensor(f0[:p_len], device=self.tdev).unsqueeze(0).float()
+        out = self.pipe.vc(self.hubert, self.net_g, self.sid, x16n, pitch, pitchf, [0, 0, 0], self.index, self.big_npy,
+                           self.index_rate, self.version, self.protect)
+        y = torch.from_numpy(out).to(self.tdev)
+        if self.tgt_sr != self.SR:
+            y = AF.resample(y, self.tgt_sr, self.SR)
+        return y.cpu().numpy().astype(np.float32)
+
+    def process(self, inp: np.ndarray) -> np.ndarray:
+        block, xfade, sola_search = self.block, self.xfade, self.sola_search
+        t0 = time.perf_counter()
+        self.buf = np.concatenate([self.buf[block:], inp])
+        rms = float(np.sqrt(np.mean(inp ** 2)) + 1e-9)
+        if rms < self.gate:
+            out = np.zeros(block, dtype=np.float32)
+            self.sola_buf[:] = 0
+        else:
+            y = self.convert(self.buf)
+            need = block + sola_search + xfade
+            y = y[-need:] if y.shape[0] >= need else np.pad(y, (need - y.shape[0], 0))
+            # SOLA: best alignment of the new head against the previous tail
+            head = y[: xfade + sola_search]
+            if np.any(self.sola_buf):
+                cor = np.correlate(head, self.sola_buf, "valid")
+                nrm = np.sqrt(np.convolve(head ** 2, np.ones(xfade), "valid") + 1e-8)
+                off = int(np.argmax(cor / nrm))
+            else:
+                off = 0
+            seg = y[off: off + block + xfade].copy()
+            seg[:xfade] = seg[:xfade] * self.fade_in + self.sola_buf * self.fade_out
+            out = seg[:block]
+            self.sola_buf = seg[block: block + xfade].copy()
+            if self.sola_buf.shape[0] < xfade:
+                self.sola_buf = np.pad(self.sola_buf, (0, xfade - self.sola_buf.shape[0]))
+        ms = (time.perf_counter() - t0) * 1000
+        self.stats["n"] += 1
+        if ms > self.block_s * 1000:
+            self.stats["over"] += 1
+        if self.log and self.stats["n"] % 10 == 0:
+            print(f"[{self.stats['n']}] {ms:.1f}ms / {self.block_s * 1000:.0f}ms "
+                  f"{'OK' if ms < self.block_s * 1000 else 'SLOW'}  over={self.stats['over']} gate={'open' if rms >= self.gate else 'shut'}",
+                  flush=True)
+        return np.clip(out, -1, 1)
+
+    def warmup(self) -> None:
+        # warm-up (cudnn/rmvpe/hubert)
+        for _ in range(2):
+            self.process((np.random.randn(self.block) * 0.05).astype(np.float32))
+        self.stats.update(n=0, over=0)
+        self.reset()
 
 
 def main() -> int:
@@ -35,121 +158,19 @@ def main() -> int:
     ap.add_argument("--output-wav", default=None)
     a = ap.parse_args()
 
-    import logging
-    import warnings
-
-    warnings.filterwarnings("ignore")
-    logging.disable(logging.WARNING)  # fairseq/rvc_python INFO+WARNING chatter
-    import faiss
-    import torch
-    import torch.nn.functional as F
-    import torchaudio.functional as AF
-    from rvc_python.infer import RVCInference
-
-    dev = "cuda:0" if a.device == "cuda" and torch.cuda.is_available() else "cpu:0"
+    rt = RvcRealtime(model=a.model, index=a.index, pitch=a.pitch, index_rate=a.index_rate, protect=a.protect,
+                     block=a.block, extra=a.extra, crossfade=a.crossfade, threshold=a.threshold, device=a.device, sr=a.sr)
+    torch = rt.torch
     print("RVC v2 Real-Time Voice Conversion", flush=True)
-    print(f"  Device:     {'cuda' if dev.startswith('cuda') else 'cpu'}"
-          f"{' (' + torch.cuda.get_device_name(0) + ')' if dev.startswith('cuda') else ''}", flush=True)
+    print(f"  Device:     {'cuda' if rt.dev.startswith('cuda') else 'cpu'}"
+          f"{' (' + torch.cuda.get_device_name(0) + ')' if rt.dev.startswith('cuda') else ''}", flush=True)
     print(f"  Model:      {a.model}", flush=True)
     print(f"  Index:      {a.index or '(none)'}  rate={a.index_rate}", flush=True)
     print(f"  Pitch:      {a.pitch:+g} st   block={a.block}s extra={a.extra}s xfade={a.crossfade}s gate={a.threshold}dB",
           flush=True)
-
-    rvc = RVCInference(device=dev)
-    rvc.load_model(a.model, version="v2", index_path=a.index)
-    vc = rvc.vc
-    from rvc_python.modules.vc.utils import load_hubert
-
-    if vc.hubert_model is None:
-        vc.hubert_model = load_hubert(vc.config, vc.lib_dir)
-    hubert, net_g, pipe = vc.hubert_model, vc.net_g, vc.pipeline
-    tgt_sr, if_f0, version = vc.tgt_sr, vc.if_f0, vc.version
-    is_half = vc.config.is_half
-    print(f"  fp16:       {is_half}   model sr={tgt_sr}  f0={bool(if_f0)}  version={version}", flush=True)
-
-    index = big_npy = None
-    if a.index and os.path.exists(a.index) and a.index_rate > 0:
-        index = faiss.read_index(a.index)
-        big_npy = index.reconstruct_n(0, index.ntotal)
-
-    SR = a.sr
-    zc = SR // 100  # 10 ms grid
-    block = int(round(a.block * SR / zc)) * zc
-    xfade = int(round(a.crossfade * SR / zc)) * zc
-    sola_search = zc
-    extra = int(round(a.extra * SR / zc)) * zc
-    total = extra + xfade + sola_search + block
-    buf = np.zeros(total, dtype=np.float32)
-    sola_buf = np.zeros(xfade, dtype=np.float32)
-    fade_in = (np.sin(0.5 * np.pi * np.linspace(0, 1, xfade)) ** 2).astype(np.float32)
-    fade_out = 1 - fade_in
-    gate = 10 ** (a.threshold / 20)
-    tdev = torch.device(dev)
-    stats = {"n": 0, "over": 0}
-
-    sid = torch.tensor([0], device=tdev).long()
-
-    def convert(x48: np.ndarray) -> np.ndarray:
-        x = torch.from_numpy(x48).to(tdev)
-        x16 = AF.resample(x, SR, 16000)
-        x16 = AF.highpass_biquad(x16, 16000, 48.0)
-        x16n = x16.float().cpu().numpy()
-        p_len = x16n.shape[0] // 160
-        pitch = pitchf = None
-        if if_f0:
-            coarse, f0 = pipe.get_f0("rt", x16n, p_len, a.pitch, "rmvpe", 3)
-            pitch = torch.tensor(coarse[:p_len], device=tdev).unsqueeze(0).long()
-            pitchf = torch.tensor(f0[:p_len], device=tdev).unsqueeze(0).float()
-        out = pipe.vc(hubert, net_g, sid, x16n, pitch, pitchf, [0, 0, 0], index, big_npy,
-                      a.index_rate, version, a.protect)
-        y = torch.from_numpy(out).to(tdev)
-        if tgt_sr != SR:
-            y = AF.resample(y, tgt_sr, SR)
-        return y.cpu().numpy().astype(np.float32)
-
-    def process(inp: np.ndarray) -> np.ndarray:
-        nonlocal buf, sola_buf
-        t0 = time.perf_counter()
-        buf = np.concatenate([buf[block:], inp])
-        rms = float(np.sqrt(np.mean(inp ** 2)) + 1e-9)
-        if rms < gate:
-            out = np.zeros(block, dtype=np.float32)
-            sola_buf[:] = 0
-        else:
-            y = convert(buf)
-            need = block + sola_search + xfade
-            y = y[-need:] if y.shape[0] >= need else np.pad(y, (need - y.shape[0], 0))
-            # SOLA: best alignment of the new head against the previous tail
-            head = y[: xfade + sola_search]
-            if np.any(sola_buf):
-                cor = np.correlate(head, sola_buf, "valid")
-                nrm = np.sqrt(np.convolve(head ** 2, np.ones(xfade), "valid") + 1e-8)
-                off = int(np.argmax(cor / nrm))
-            else:
-                off = 0
-            seg = y[off: off + block + xfade]
-            seg = seg.copy()
-            seg[:xfade] = seg[:xfade] * fade_in + sola_buf * fade_out
-            out = seg[:block]
-            sola_buf = seg[block: block + xfade].copy()
-            if sola_buf.shape[0] < xfade:
-                sola_buf = np.pad(sola_buf, (0, xfade - sola_buf.shape[0]))
-        ms = (time.perf_counter() - t0) * 1000
-        stats["n"] += 1
-        if ms > a.block * 1000:
-            stats["over"] += 1
-        if stats["n"] % 10 == 0:
-            print(f"[{stats['n']}] {ms:.1f}ms / {a.block * 1000:.0f}ms "
-                  f"{'OK' if ms < a.block * 1000 else 'SLOW'}  over={stats['over']} gate={'open' if rms >= gate else 'shut'}",
-                  flush=True)
-        return np.clip(out, -1, 1)
-
-    # warm-up (cudnn/rmvpe/hubert)
-    for _ in range(2):
-        process((np.random.randn(block) * 0.05).astype(np.float32))
-    stats.update(n=0, over=0)
-    buf[:] = 0
-    sola_buf[:] = 0
+    print(f"  fp16:       {rt.is_half}   model sr={rt.tgt_sr}  f0={bool(rt.if_f0)}  version={rt.version}", flush=True)
+    rt.warmup()
+    block, SR = rt.block, rt.SR
 
     if a.input_wav:
         import soundfile as sf
@@ -157,14 +178,13 @@ def main() -> int:
         x, sr = sf.read(a.input_wav, dtype="float32", always_2d=True)
         x = x.mean(1)
         if sr != SR:
-            x = AF.resample(torch.from_numpy(x), sr, SR).numpy()
+            x = rt.AF.resample(torch.from_numpy(x), sr, SR).numpy()
         x = np.pad(x, (0, (-len(x)) % block + block))
-        outs = [process(x[i: i + block]) for i in range(0, len(x), block)]
+        outs = [rt.process(x[i: i + block]) for i in range(0, len(x), block)]
         sf.write(a.output_wav or "rt_out.wav", np.concatenate(outs), SR)
-        print(f"wrote {a.output_wav}  chunks={stats['n']} over={stats['over']}", flush=True)
+        print(f"wrote {a.output_wav}  chunks={rt.stats['n']} over={rt.stats['over']}", flush=True)
         return 0
 
-    import queue
     import sounddevice as sd
 
     print("[Stream] Running (sounddevice, 48 kHz mono). Ctrl+C to stop.", flush=True)
@@ -176,7 +196,7 @@ def main() -> int:
             xr += 1
             if xr % 20 == 1:
                 print(f"[Stream] status: {status} (x{xr})", flush=True)
-        outdata[:, 0] = process(indata[:, 0].copy())
+        outdata[:, 0] = rt.process(indata[:, 0].copy())
 
     with sd.Stream(samplerate=SR, blocksize=block, channels=1, dtype="float32", latency="low", callback=cb):
         try:

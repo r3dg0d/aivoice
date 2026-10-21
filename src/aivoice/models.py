@@ -49,6 +49,25 @@ CATALOG: dict[str, dict[str, Any]] = {
 }
 
 
+XVC_REPO, XVC_COMMIT = "https://github.com/Jerrister/X-VC", "49df8c591eafc48b096e466d96f9839f9c0dd739"
+CATALOG["xvc"] = {
+    "name": "xvc",
+    "backend": "xvc",
+    "source": f"git {XVC_REPO}@{XVC_COMMIT[:7]} + HF chenxie95/X-VC, zai-org/glm-4-voice-tokenizer + ModelScope ERes2Net",
+    "paper": "arXiv:2604.12456",
+    "code_license_claimed": "MIT (LICENSE file present at the pinned commit)",
+    "code_license_gap": "none for code; check the weights' model cards (not reachable from the build environment)",
+    "weights_license": "see huggingface.co/chenxie95/X-VC and the GLM-4-Voice tokenizer / ERes2Net model cards",
+    "size_hint": "~2-3 GB (GLM-4-Voice tokenizer is a Whisper-large-v3 encoder with VQ; xvc.pt; ERes2Net)",
+    "hf_revision": None,
+    "checksum": None,
+    "install": "git+hf+modelscope",
+    "files": ["xvc.pt", "glm-4-voice-tokenizer/", "speech_eres2net_sv_en_voxceleb_16k/"],
+    "notes": ("Runs in its own Python 3.10 venv (torch 2.5.1, transformers 4.44.1 pinned upstream): "
+              "set AIVOICE_XVC_PYTHON. xvc.pt is loaded with weights_only=True unless engines.xvc.trust_pickle=true."),
+}
+
+
 @dataclass
 class ModelInfo:
     name: str
@@ -106,7 +125,65 @@ def file_sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _install_xvc(yes: bool) -> str:
+    meta = CATALOG["xvc"]
+    if not yes:
+        raise RuntimeError(
+            "Refusing to download 'xvc' without --yes.\n"
+            f"  code: {meta['code_license_claimed']}\n  weights: {meta['weights_license']}\n  size: {meta['size_hint']}\n"
+            f"  pinned code commit: {XVC_COMMIT}\nRe-run: aivoice models install xvc --yes"
+        )
+    from .paths import cache_home
+
+    ensure_dirs()
+    msgs: list[str] = []
+    repo = cache_home() / "vendor" / "X-VC"
+    target = models_dir() / "xvc"
+    target.mkdir(parents=True, exist_ok=True)
+    if not (repo / ".git").exists():
+        try:
+            subprocess.run(["git", "clone", XVC_REPO, str(repo)], check=True, capture_output=True, text=True)
+            msgs.append(f"cloned {XVC_REPO} -> {repo}")
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            msgs.append(f"git clone failed: {e}")
+    if (repo / ".git").exists():
+        r = subprocess.run(["git", "-C", str(repo), "checkout", "-q", XVC_COMMIT], capture_output=True, text=True)
+        msgs.append(f"checked out {XVC_COMMIT[:7]}" if r.returncode == 0 else f"checkout failed: {r.stderr.strip()}")
+    checksums: dict[str, str] = {}
+    try:
+        from huggingface_hub import snapshot_download  # type: ignore
+
+        snapshot_download(repo_id="chenxie95/X-VC", local_dir=str(target), allow_patterns=["*.pt", "*.md", "*.json", "*.yaml"])
+        snapshot_download(repo_id="zai-org/glm-4-voice-tokenizer", local_dir=str(target / "glm-4-voice-tokenizer"))
+        for f in target.rglob("*"):
+            if f.is_file() and f.suffix in {".pt", ".safetensors", ".bin"}:
+                checksums[str(f.relative_to(target))] = file_sha256(f)
+        msgs.append(f"Hugging Face weights -> {target}")
+    except ImportError:
+        msgs.append("huggingface_hub not installed: pip install 'aivoice[hf]' and re-run")
+    except Exception as e:  # noqa: BLE001
+        msgs.append(f"Hugging Face download failed: {e}")
+    eres = target / "speech_eres2net_sv_en_voxceleb_16k"
+    try:
+        from modelscope import snapshot_download as ms_download  # type: ignore
+
+        ms_download("iic/speech_eres2net_sv_en_voxceleb_16k", local_dir=str(eres))
+        msgs.append(f"ERes2Net (ModelScope) -> {eres}")
+    except ImportError:
+        msgs.append(f"ERes2Net is on ModelScope: pip install modelscope and re-run, or download "
+                    f"iic/speech_eres2net_sv_en_voxceleb_16k into {eres}")
+    except Exception as e:  # noqa: BLE001
+        msgs.append(f"ModelScope download failed: {e}")
+    _save("xvc", {"vendor": str(repo), "commit": XVC_COMMIT, "checksums": checksums})
+    msgs.append("Runtime: python3.10 -m venv ~/.local/share/aivoice/xvc-venv && pip install -r "
+                f"{repo}/requirements.txt; then export AIVOICE_XVC_PYTHON=~/.local/share/aivoice/xvc-venv/bin/python")
+    msgs.append("Check: aivoice engines info xvc")
+    return "X-VC install steps:\n" + "\n".join(msgs)
+
+
 def install_model(name: str, *, yes: bool = False) -> str:
+    if name == "xvc":
+        return _install_xvc(yes)
     if name not in CATALOG:
         raise KeyError(f"unknown model {name!r}; known: {', '.join(sorted(CATALOG))}")
     meta = CATALOG[name]

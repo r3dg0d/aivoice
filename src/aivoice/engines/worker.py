@@ -40,8 +40,10 @@ def engine_python(engine: str) -> str:
 
 class WorkerClient:
     def __init__(self, handler: str, *, python: str | None = None, env: dict[str, str] | None = None,
-                 timeout_s: float = 600.0) -> None:
+                 timeout_s: float = 600.0, script: Path | None = None, start_timeout_s: float = 60.0) -> None:
         self.handler = handler
+        self.script = Path(script) if script else WORKER_SCRIPT
+        self.start_timeout_s = start_timeout_s
         self.python = python or sys.executable
         self.env = env
         self.timeout_s = timeout_s
@@ -65,7 +67,7 @@ class WorkerClient:
         env = {**os.environ, **(self.env or {})}
         try:
             self._proc = subprocess.Popen(
-                [self.python, "-u", str(WORKER_SCRIPT), self.handler],
+                [self.python, "-u", str(self.script), self.handler],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=log,
@@ -88,7 +90,7 @@ class WorkerClient:
 
         self._reader = threading.Thread(target=pump, name=f"aivoice-worker-{self.handler}", daemon=True)
         self._reader.start()
-        hello = self._read(timeout=60)
+        hello = self._read(timeout=self.start_timeout_s)
         if not hello.get("ok"):
             raise EngineUnavailable(f"worker failed to start: {hello.get('error')}")
 
@@ -111,7 +113,7 @@ class WorkerClient:
             except json.JSONDecodeError:
                 continue
 
-    def request(self, op: str, **kw: Any) -> Iterator[dict[str, Any]]:
+    def request(self, op: str, *, timeout_s: float | None = None, **kw: Any) -> Iterator[dict[str, Any]]:
         """Yield chunk messages, then the final response (raises on error)."""
         with self._lock:
             if not self.running:
@@ -122,7 +124,7 @@ class WorkerClient:
             self._proc.stdin.write((json.dumps({"id": rid, "op": op, **kw}) + "\n").encode())
             self._proc.stdin.flush()
             while True:
-                msg = self._read(self.timeout_s)
+                msg = self._read(timeout_s or self.timeout_s)
                 if msg.get("id") != rid:
                     continue
                 if "chunk" in msg:
@@ -133,9 +135,9 @@ class WorkerClient:
                 yield msg
                 return
 
-    def call(self, op: str, **kw: Any) -> dict[str, Any]:
+    def call(self, op: str, *, timeout_s: float | None = None, **kw: Any) -> dict[str, Any]:
         last: dict[str, Any] = {}
-        for msg in self.request(op, **kw):
+        for msg in self.request(op, timeout_s=timeout_s, **kw):
             last = msg
         return last
 

@@ -109,6 +109,18 @@ DEFAULTS: dict[str, Any] = {
         "confirm_over_gib": 2.0,
     },
     "presets": {},
+    # --- live voice conversion / modulation (0.6) ---
+    "vc": {
+        "engine": "auto",  # auto | xvc | rvc | meanvc2 | dsp | passthrough | stylestream | streamvoiceanon
+        "priority": "balanced",  # see aivoice.vc.router.PRIORITIES
+        "fallback": ["dsp"],  # tried in order when the selected engine fails; mic audio never stops
+        "voice": None,
+        "pre": {"denoise": 0.0, "pitch_semitones": 0.0, "formant_ratio": 1.0},  # before the VC engine
+        "post": {"preset": None, "strength": 0.0},  # modulation after the VC engine
+        "chunk_ms": None,  # None = engine default
+        "device": "cuda",
+    },
+    "modulation": {"preset": "natural", "strength": 0.65, "overrides": {}},
 }
 
 
