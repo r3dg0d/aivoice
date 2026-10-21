@@ -1,0 +1,15 @@
+{
+  "id": "K",
+  "title": "Source-timbre leakage",
+  "change": "GE2E(output, source) vs GE2E(source, target) baseline per engine; lower is better.",
+  "rationale": "",
+  "implemented": "",
+  "baseline": "",
+  "status": "not run",
+  "metrics": {},
+  "decision": "NOT RUN: needs a neural VC engine running",
+  "regression": "",
+  "limitations": [],
+  "data": "",
+  "seconds": 0.0
+}

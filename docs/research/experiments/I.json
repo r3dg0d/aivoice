@@ -1,0 +1,15 @@
+{
+  "id": "I",
+  "title": "X-VC vs MeanVC2 quality",
+  "change": "Same sources/targets through both (aivoice benchmark vc --engines xvc,meanvc2): target GE2E similarity, source leakage, WER/CER, F0 jumps, clicks; loudness-matched listening set.",
+  "rationale": "",
+  "implemented": "",
+  "baseline": "",
+  "status": "not run",
+  "metrics": {},
+  "decision": "NOT RUN: X-VC and MeanVC2 weights are on Hugging Face, which is unreachable here; no GPU",
+  "regression": "",
+  "limitations": [],
+  "data": "",
+  "seconds": 0.0
+}

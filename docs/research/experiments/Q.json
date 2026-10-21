@@ -1,0 +1,15 @@
+{
+  "id": "Q",
+  "title": "Neural vs DSP modulation",
+  "change": "StyleStream (curated styles) vs DSP presets on identity retention and attribute change.",
+  "rationale": "",
+  "implemented": "",
+  "baseline": "",
+  "status": "not run",
+  "metrics": {},
+  "decision": "NOT RUN: StyleStream checkpoints are on Hugging Face (unreachable here); its public release cannot embed arbitrary targets",
+  "regression": "",
+  "limitations": [],
+  "data": "",
+  "seconds": 0.0
+}

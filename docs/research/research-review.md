@@ -1,7 +1,9 @@
 # Research review
 
-Verified 2026-10-20 from this environment. Code and weights were inspected only where they could be fetched (PyPI wheels).
-huggingface.co, GitHub release assets and most publisher sites were blocked, so no neural model was run here.
+Zero-shot cloning entries verified 2026-10-20; live voice-conversion and modulation entries verified 2026-10-21.
+Code was inspected where it could be fetched: PyPI wheels, and git clones of the official repositories at the
+commits named below. huggingface.co, arxiv.org, ModelScope and most publisher sites were unreachable, so no
+neural model was run here, and paper claims are quoted from search-indexed abstracts and labelled as such.
 Machine-readable source: `src/aivoice/research/catalog.py` (`aivoice research list`, `aivoice research citations`).
 
 ## Status classes
@@ -17,6 +19,11 @@ Machine-readable source: `src/aivoice/research/catalog.py` (`aivoice research li
 | blocked-license | Usable code/weights exist but the license forbids the use |
 | unverified | The source could not be retrieved; claims about it are not relied on |
 
+Live engines additionally carry an **evidence class**: peer-reviewed research, official research implementation,
+community implementation, or unvalidated experiment (`aivoice engines info NAME` shows it). A GitHub prototype is
+never presented as established research. Engine *states* (READY, MISSING_WEIGHTS, BLOCKED_CODE, ...) are runtime
+checks on the current machine and are described in [../streaming-vc.md](../streaming-vc.md).
+
 ## Matrix
 
 | Paper | Venue | Technique | Code | Weights | License | Status | In aivoice |
@@ -31,6 +38,17 @@ Machine-readable source: `src/aivoice/research/catalog.py` (`aivoice research li
 | [PFluxTTS: Hybrid Flow-Matching TTS with Robust Cross-Lingual Voice Cloning and Inference-Time Model Fusion](https://arxiv.org/abs/2602.04160) | arXiv 2602.04160, ICASSP 2026 | inference-time vector-field fusion of duration-guided and alignment-free decoders; 48 kHz PeriodWave vocoder | no code found | none found | n/a | **experimental** | research/flow_matching.py: fused-field ODE sampler with a strict state-space compatibility check; no installed engine pair is compatible, so it is never used in synthesis |
 | [Speaker-specific adaptation vs zero-shot TTS (EURASIP JASMP, doi 10.1186/s13636-026-00479-w)](https://link.springer.com/article/10.1186/s13636-026-00479-w) | EURASIP J. Audio Speech Music Process. (2026), as cited in the brief | trade-offs between zero-shot and parameter-efficient adaptation | n/a | n/a | n/a | **unverified** | could not retrieve the article from this environment; aivoice's adaptation path (research/adaptation.py, VoxCPM LoRA manifests) follows VoxCPM's own documented fine-tuning workflow instead |
 | [MeanVC2: Robust Low-Latency Streaming Zero-Shot Voice Conversion](https://arxiv.org/abs/2606.09050) | arXiv 2606.09050 (2026) | streaming zero-shot VC with mean flows, 40/120 ms chunks | github.com/ASLP-lab/MeanVC2 (vendor checkout) | ASLP-lab/MeanVC2 | README claims Apache-2.0; LICENSE file missing upstream (NOTICE) | **directly-implemented** | existing baseline; MeanVC2Engine adapter; the v2 reference preparation applies to its target clips too |
+| [X-VC: Zero-shot Streaming Voice Conversion in Codec Space](https://arxiv.org/abs/2604.12456) | arXiv 2604.12456 (2026), SJTU X-LANCE | one-step conversion in a pretrained codec (SAC) latent space: GLM-4-Voice semantic tokens + acoustic latents, ERes2Net utterance speaker embedding via adaptive normalisation, target mel as frame-level condition; chunkwise streaming with overlap smoothing | github.com/Jerrister/X-VC @ 49df8c5 (inspected: bins/infer_utils.py, models/codec/sac, configs/xvc.yaml), MIT | huggingface.co/chenxie95/X-VC (xvc.pt; not reachable here) + zai-org/glm-4-voice-tokenizer + ModelScope ERes2Net | code MIT; weights per model cards (not verified here) | **directly-implemented** | vc/stream_worker.py XVCHandler: upstream load path, conditions and chunk forward; SlidingWindowStreamer makes upstream's run_streaming incremental (sample-identical, unit-tested). Not run here: weights unreachable, no GPU. Never auto-selected until `aivoice benchmark vc` measures it ahead locally |
+| [RT-VC: Real-Time Zero-Shot Voice Conversion with Speech Articulatory Coding](https://aclanthology.org/2025.acl-demo.37) | ACL 2025 System Demonstrations (2025.acl-demo.37); arXiv 2506.10289 | articulatory (EMA) content features + causal pitch tracker + speaker encoder + DDSP vocoder; reported 61.4 ms CPU latency | github.com/Berkeley-Speech-Group/RT-VC @ 9d9a55d (inspected): model definitions and an offline notebook helper only | none published | no LICENSE file in the repository (all rights reserved by default) | **blocked-weights** | catalogue-only engine `rtvc` (BLOCKED_CODE): no checkpoints, no streaming loop, no license. Nothing is faked |
+| [Zero-VC: Zero-Lookahead Streaming Voice Conversion via Speaker Anonymization](https://arxiv.org/abs/2606.20218) | arXiv 2606.20218 (2026) | strictly causal zero-lookahead VC: distilled streaming w2v-BERT 2.0 content encoder, timbre encoder, streaming decoder; speaker anonymisation as a training-time perturbation against timbre leakage; 20 ms frames | none found (demo page amphionteam.github.io/Zero-VC-demo only) | none found | n/a | **blocked-weights** | catalogue-only engine `zerovc` (RESEARCH_ONLY). Needed later: code + causal checkpoints + a license |
+| [TVTSyn: Content-Synchronous Time-Varying Timbre for Streaming Voice Conversion and Anonymization](https://arxiv.org/abs/2602.09389) | ICLR 2026; arXiv 2602.09389 | Global Timbre Memory + content-synchronous, gated time-varying timbre instead of one static speaker vector; factorised VQ bottleneck; reported < 80 ms GPU latency | no GitHub repository found; a Hugging Face page (warisqr007/TVTSyn) is indexed but was unreachable here | warisqr007/TVTSyn (not inspected) | CC BY-NC 4.0 per the indexed model page (non-commercial) | **unverified** | catalogue-only engine `tvtsyn`. Idea noted, not borrowed: static-vector vs time-varying timbre is an architectural property of the trained model and cannot be bolted onto another engine |
+| [StyleStream: Real-Time Zero-Shot Voice Style Conversion](https://arxiv.org/abs/2602.20113) | arXiv 2602.20113 (2026); Interspeech 2026 | Destylizer (content with a tight bottleneck and text supervision) + Stylizer (DiT flow matching) for timbre, accent and emotion; ~1 s end-to-end latency (600 ms chunks) | github.com/Berkeley-Speech-Group/StyleStream @ 38dd18c (inspected: inference/streaming.py) | Louis0324/StyleStream (style encoder weights withheld; curated style embeddings only) | Research, Educational and Not-for-Profit license (UC Regents): no commercial use | **directly-implemented** | engine `stylestream` (EXPERIMENTAL): upstream processing loop in vc/stream_worker.py; never chosen by `auto`; targets must be curated style folders (.wav + .npy). Not run here |
+| [Stream-Voice-Anon: Enhancing Utility of Real-Time Speaker Anonymization via Neural Audio Codec and Language Models](https://arxiv.org/abs/2601.13948) | ICASSP 2026; arXiv 2601.13948 | causal codec language model (Firefly codec) with pseudo-speaker sampling and speaker-embedding noise mixing; ~180 ms reported latency | github.com/Plachtaa/StreamVoiceAnon @ 2017051 (inspected: evaluations/infer_arvc.py streaming API), Apache-2.0 | Plachta/StreamVoiceAnon | code Apache-2.0; weights per model card | **directly-implemented** | engine `streamvoiceanon` (EXPERIMENTAL, CUDA only): setup_stream_caches / prefill_prompt / process_one_chunk in the worker; `alpha` < 1 is the anonymisation knob. Not run here |
+| [StreamVoiceAnon+: Emotion-Preserving Streaming Speaker Anonymization via Frame-Level Acoustic Distillation](https://arxiv.org/abs/2603.06079) | Interspeech 2026; arXiv 2603.06079 | fine-tunes StreamVoiceAnon with frame-level acoustic (emotion) distillation | described in the StreamVoiceAnon README; models marked 'coming soon' at commit 2017051 | not released at the inspected commit | n/a | **blocked-weights** | not integrated: no released weights |
+| [Retrieval-based Voice Conversion (RVC v1/v2)](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI) | community implementation (not peer-reviewed) | HuBERT/ContentVec features + FAISS index retrieval + RMVPE F0 + VITS/NSF-HiFiGAN decoder trained per voice | rvc-python (runtime of aivoice's rt_worker.py); RVC-Project WebUI and IAHispano/Applio realtime code read for the block/SOLA design | per-voice .pth/.index from their uploaders | RVC-Project MIT; voice models per uploader | **directly-implemented** | engine `rvc`: rvc/rt_worker.py RvcRealtime (block + extra context + SOLA crossfade) behind the shared pipeline; also its own sounddevice path (`virtualmic --engine rvc`). .pth files are pickles: trusted models only |
+| [Improved phase vocoder time-scale modification of audio / New phase-vocoder techniques for pitch-shifting](https://doi.org/10.1109/89.759041) | IEEE Trans. Speech Audio Process. 7(3), 1999; IEEE WASPAA 1999 | identity phase locking around spectral peaks; pitch shifting by moving peak regions | n/a (algorithm) | n/a | n/a | **adapted** | modulation/dsp.py: identity phase locking on the excitation spectrum (experiment R: lower aperiodicity than plain propagation at 32/48 ms windows; cross-frame peak matching measured worse and was dropped) |
+| [Efficient spectral envelope estimation and its application to pitch shifting and envelope preservation](https://www.dafx.de/paper-archive/2005/P_030.pdf) | DAFx 2005 | iterative cepstral 'true envelope' for formant-preserving pitch shifting | n/a (algorithm) | n/a | n/a | **adapted** | modulation/dsp.py _lifter_envelope (3 iterations, lifter order tied to the tracked F0); formant warping of that envelope is aivoice's own use of it |
+| [Acoustic cues to perceived voice gender and body size (F0, formants / vocal-tract length, voice quality)](https://doi.org/10.3758/APP.71.5.1150) | Peterson & Barney 1952 (JASA); Hillenbrand et al. 1995 (JASA); Fitch & Giedd 1999 (JASA); Hillenbrand & Clark 2009 (Atten. Percept. Psychophys.); Skuk & Schweinberger 2014 (JSLHR) | perceived sex/masculinity depends on F0 and on formant frequencies (vocal-tract length), with smaller contributions from aperiodicity/spectrum level; pitch alone does not make a voice sound male | n/a | n/a | n/a | **unverified** | not retrievable from this environment; used only as the rationale for testing formants alongside pitch. The defaults come from aivoice's own measurements (experiments M, N, L), not from these papers' numbers |
 | [Generalized End-to-End Loss for Speaker Verification](https://arxiv.org/abs/1710.10467) | ICASSP 2018 | speaker-verification embeddings (used for evaluation only) | Resemblyzer (Apache-2.0) pretrained.pt | bundled in the resemblyzer wheel | Apache-2.0 | **faithfully-reproduced** | research/speaker_identity.py reproduces Resemblyzer's inference exactly (cosine 1.0000 vs its own encoder) |
 
 ## Evidence for the adapted / experimental items
@@ -41,8 +59,47 @@ Machine-readable source: `src/aivoice/research/catalog.py` (`aivoice research li
 - **Vector-field fusion (PFluxTTS):** `research/flow_matching.py` checks that two fields share a state space, sample rate, feature type and conditioning before fusing them. None of the installed engine pairs passes that check, so fusion is never used in synthesis. It is covered by unit tests on analytic fields only.
 - **Style/timbre separation (FC-TTS, FlexiVoice):** a style instruction is passed only to engines that implement one natively (VoxCPM2). Any engine without native support refuses `--style-reference`; nothing is blended in embedding space.
 
+## Live voice conversion (0.6): what was inspected
+
+- **X-VC** (`Jerrister/X-VC` @ 49df8c5, MIT). Inference is `bins/infer_utils.py`: `load_xvc` -> `precompute_conditions`
+  (ERes2Net speaker embedding + target mel) -> `run_stream_chunk_forward` (GLM-4-Voice tokens -> semantic adapter,
+  SAC acoustic encoder + quantiser -> prenet -> acoustic converter -> codec decoder). Streaming recomputes a 2.4 s
+  window every `current` ms (upstream script: current 120, future 100, smooth 20 ms -> 240 ms algorithmic latency).
+  The checkpoint is loaded upstream with `torch.load(weights_only=False)`; aivoice forces `weights_only=True` unless the
+  user sets `engines.xvc.trust_pickle`. Weights are on Hugging Face (unreachable here), so X-VC was **not run**.
+- **MeanVC2** (`ASLP-lab/MeanVC2` @ 13acf84). `runtime/run_rt.py` takes the target only as `--target-spk` (default: a
+  bundled test clip that is not in the repository) and defaults to `--device cpu`. Before c7d5db8 aivoice passed the
+  target through an environment variable that upstream never reads, so `aivoice live` did not condition on the
+  chosen voice; c7d5db8 fixed the flags. 0.6 adds a resident engine (upstream `VCRunner` kept loaded).
+- **RT-VC** (`Berkeley-Speech-Group/RT-VC` @ 9d9a55d): model definitions and an offline helper; no checkpoints, no
+  streaming loop, no LICENSE file -> catalogue entry only.
+- **Zero-VC**: demo page only; no code or weights found -> catalogue entry only.
+- **TVTSyn**: an indexed Hugging Face page (CC BY-NC 4.0) that could not be opened here; no GitHub repository found.
+- **StyleStream** (`Berkeley-Speech-Group/StyleStream` @ 38dd18c): research/non-commercial license; the public
+  checkpoint has no style encoder (curated style embeddings only); 600 ms chunks -> experimental engine.
+- **StreamVoiceAnon** (`Plachtaa/StreamVoiceAnon` @ 2017051, Apache-2.0): streaming API in `evaluations/infer_arvc.py`,
+  CUDA-only (CUDA events/autocast in the chunk path); StreamVoiceAnon+ weights "coming soon" -> experimental engine.
+- **RVC**: no paper. aivoice's `rvc/rt_worker.py` (c7d5db8) follows RVC-Project's realtime GUI (block + extra context
+  + SOLA); IAHispano/Applio's realtime pipeline (MIT, loads `.pth` with `weights_only=True`) was read for comparison.
+
+## Modulation evidence (measured here)
+
+- **M** ([experiments/M.md](experiments/M.md)): on top of a pitch drop, warping formants added masculinity (GE2E
+  male-female direction, a weak proxy) far more efficiently per unit of identity lost than lowering pitch
+  further (marginal efficiency 0.99 vs 0.013: masculinity gained per unit of GE2E similarity lost); body resonance, narrower intonation and darker brightness added nothing measurable and are **not**
+  in the default masculine preset (they remain manual controls).
+- **N** ([experiments/N.md](experiments/N.md)): formant-only warps 0.95-0.80; identity cost grows monotonically.
+- **L** ([experiments/L.md](experiments/L.md)): identity retention per preset; only masculine-strong drops GE2E
+  similarity by more than 0.10 on the synthetic speakers.
+- **R** ([experiments/R.md](experiments/R.md)): identity phase locking kept; output is bit-identical for any capture
+  block size (this experiment caught and fixed a zero-gap bug at non-multiple block sizes).
+- **O** (`experiments/O-*.json`): 30-minute streams: no NaNs, no fallbacks, flat latency, bounded memory.
+
 ## Not done, and why
 
 - Experiments A, B, D, E and H were not run: they need model weights (Hugging Face blocked) or a GPU. Each is defined in `aivoice research experiments` and runs unchanged on a machine with the engines installed.
 - Confucius4-TTS and the EURASIP adaptation article could not be retrieved, so nothing in aivoice depends on claims from them.
 - No training was run. `aivoice clone adapt` validates datasets and writes VoxCPM LoRA manifests only.
+- Experiments I, J, K, P and Q (X-VC vs MeanVC2 quality and latency, source leakage, RVC vs zero-shot, neural vs DSP
+  modulation) were not run: they need the neural engines' weights and a GPU. `aivoice benchmark vc` and
+  `aivoice research experiments --run I,J,K,P,Q` run them unchanged on a machine that has them.

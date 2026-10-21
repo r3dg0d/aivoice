@@ -1,0 +1,15 @@
+{
+  "id": "J",
+  "title": "X-VC vs MeanVC2 latency",
+  "change": "Per-chunk p50/p95/p99, RTF, algorithmic vs measured delay at each quality preset on the RTX 4090.",
+  "rationale": "",
+  "implemented": "",
+  "baseline": "",
+  "status": "not run",
+  "metrics": {},
+  "decision": "NOT RUN: no weights / GPU here",
+  "regression": "",
+  "limitations": [],
+  "data": "",
+  "seconds": 0.0
+}

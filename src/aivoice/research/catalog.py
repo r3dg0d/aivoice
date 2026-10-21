@@ -2,6 +2,11 @@
 
 Status vocabulary: directly-implemented | faithfully-reproduced | adapted | experimental |
 investigated | blocked-weights | blocked-license | unverified.
+
+Evidence classes for live VC (0.6, verified 2026-10-21): peer-reviewed research | official research
+implementation | community implementation | unvalidated experiment. Repositories were inspected at
+the commits named in each entry; arXiv/Hugging Face pages were not reachable from the build
+environment, so paper claims are quoted from search-indexed abstracts and labelled as such.
 """
 
 from __future__ import annotations
@@ -161,6 +166,162 @@ PAPERS: list[Paper] = [
         "directly-implemented",
         "existing baseline; MeanVC2Engine adapter; the v2 reference preparation applies to its target clips too",
         "@article{ma2026meanvc2, title={MeanVC2: Robust Low-Latency Streaming Zero-Shot Voice Conversion}, author={Ma, Guobin and Xia, Yuxuan and Jiang, Yuepeng and Guo, Dake and Xie, Hanke and Hu, Jingbin and Wang, Yanbo and Xie, Lei and Zhu, Pengcheng}, journal={arXiv preprint arXiv:2606.09050}, year={2026}}",
+    ),
+    # --- 0.6: live voice conversion ------------------------------------------------------------
+    Paper(
+        "xvc",
+        "X-VC: Zero-shot Streaming Voice Conversion in Codec Space",
+        "arXiv 2604.12456 (2026), SJTU X-LANCE",
+        "https://arxiv.org/abs/2604.12456",
+        "one-step conversion in a pretrained codec (SAC) latent space: GLM-4-Voice semantic tokens + acoustic latents, "
+        "ERes2Net utterance speaker embedding via adaptive normalisation, target mel as frame-level condition; chunkwise "
+        "streaming with overlap smoothing",
+        "github.com/Jerrister/X-VC @ 49df8c5 (inspected: bins/infer_utils.py, models/codec/sac, configs/xvc.yaml), MIT",
+        "huggingface.co/chenxie95/X-VC (xvc.pt; not reachable here) + zai-org/glm-4-voice-tokenizer + ModelScope ERes2Net",
+        "code MIT; weights per model cards (not verified here)",
+        "directly-implemented",
+        "vc/stream_worker.py XVCHandler: upstream load path, conditions and chunk forward; SlidingWindowStreamer makes "
+        "upstream's run_streaming incremental (sample-identical, unit-tested). Not run here: weights unreachable, no GPU. "
+        "Never auto-selected until `aivoice benchmark vc` measures it ahead locally",
+        "@article{zheng2026xvc, title={X-VC: Zero-shot Streaming Voice Conversion in Codec Space}, author={Zheng, Qixi and Zhao, Yuxiang and Chen, Xie and others}, journal={arXiv preprint arXiv:2604.12456}, year={2026}}",
+    ),
+    Paper(
+        "rtvc",
+        "RT-VC: Real-Time Zero-Shot Voice Conversion with Speech Articulatory Coding",
+        "ACL 2025 System Demonstrations (2025.acl-demo.37); arXiv 2506.10289",
+        "https://aclanthology.org/2025.acl-demo.37",
+        "articulatory (EMA) content features + causal pitch tracker + speaker encoder + DDSP vocoder; reported 61.4 ms CPU latency",
+        "github.com/Berkeley-Speech-Group/RT-VC @ 9d9a55d (inspected): model definitions and an offline notebook helper only",
+        "none published",
+        "no LICENSE file in the repository (all rights reserved by default)",
+        "blocked-weights",
+        "catalogue-only engine `rtvc` (BLOCKED_CODE): no checkpoints, no streaming loop, no license. Nothing is faked",
+        "@inproceedings{liu2025rtvc, title={RT-VC: Real-Time Zero-Shot Voice Conversion with Speech Articulatory Coding}, author={Liu, Yisi and Wang, Chenyang and Kim, Hanjo and Khan, Raniya and Anumanchipalli, Gopala}, booktitle={Proceedings of ACL 2025: System Demonstrations}, year={2025}}",
+    ),
+    Paper(
+        "zerovc",
+        "Zero-VC: Zero-Lookahead Streaming Voice Conversion via Speaker Anonymization",
+        "arXiv 2606.20218 (2026)",
+        "https://arxiv.org/abs/2606.20218",
+        "strictly causal zero-lookahead VC: distilled streaming w2v-BERT 2.0 content encoder, timbre encoder, streaming "
+        "decoder; speaker anonymisation as a training-time perturbation against timbre leakage; 20 ms frames",
+        "none found (demo page amphionteam.github.io/Zero-VC-demo only)",
+        "none found",
+        "n/a",
+        "blocked-weights",
+        "catalogue-only engine `zerovc` (RESEARCH_ONLY). Needed later: code + causal checkpoints + a license",
+        "@article{zerovc2026, title={Zero-VC: Zero-Lookahead Streaming Voice Conversion via Speaker Anonymization}, journal={arXiv preprint arXiv:2606.20218}, year={2026}}",
+    ),
+    Paper(
+        "tvtsyn",
+        "TVTSyn: Content-Synchronous Time-Varying Timbre for Streaming Voice Conversion and Anonymization",
+        "ICLR 2026; arXiv 2602.09389",
+        "https://arxiv.org/abs/2602.09389",
+        "Global Timbre Memory + content-synchronous, gated time-varying timbre instead of one static speaker vector; "
+        "factorised VQ bottleneck; reported < 80 ms GPU latency",
+        "no GitHub repository found; a Hugging Face page (warisqr007/TVTSyn) is indexed but was unreachable here",
+        "warisqr007/TVTSyn (not inspected)",
+        "CC BY-NC 4.0 per the indexed model page (non-commercial)",
+        "unverified",
+        "catalogue-only engine `tvtsyn`. Idea noted, not borrowed: static-vector vs time-varying timbre is an architectural "
+        "property of the trained model and cannot be bolted onto another engine",
+        "@inproceedings{quamer2026tvtsyn, title={TVTSyn: Content-Synchronous Time-Varying Timbre for Streaming Voice Conversion and Anonymization}, author={Quamer, Waris and Tseng, Mu-Ruei and Nasrallah, Ghady and Gutierrez-Osuna, Ricardo}, booktitle={ICLR}, year={2026}}",
+    ),
+    Paper(
+        "stylestream",
+        "StyleStream: Real-Time Zero-Shot Voice Style Conversion",
+        "arXiv 2602.20113 (2026); Interspeech 2026",
+        "https://arxiv.org/abs/2602.20113",
+        "Destylizer (content with a tight bottleneck and text supervision) + Stylizer (DiT flow matching) for timbre, "
+        "accent and emotion; ~1 s end-to-end latency (600 ms chunks)",
+        "github.com/Berkeley-Speech-Group/StyleStream @ 38dd18c (inspected: inference/streaming.py)",
+        "Louis0324/StyleStream (style encoder weights withheld; curated style embeddings only)",
+        "Research, Educational and Not-for-Profit license (UC Regents): no commercial use",
+        "directly-implemented",
+        "engine `stylestream` (EXPERIMENTAL): upstream processing loop in vc/stream_worker.py; never chosen by `auto`; "
+        "targets must be curated style folders (.wav + .npy). Not run here",
+        "@article{liu2026stylestream, title={StyleStream: Real-Time Zero-Shot Voice Style Conversion}, author={Liu, Yisi and Lee, Nicholas and Anumanchipalli, Gopala}, journal={arXiv preprint arXiv:2602.20113}, year={2026}}",
+    ),
+    Paper(
+        "streamvoiceanon",
+        "Stream-Voice-Anon: Enhancing Utility of Real-Time Speaker Anonymization via Neural Audio Codec and Language Models",
+        "ICASSP 2026; arXiv 2601.13948",
+        "https://arxiv.org/abs/2601.13948",
+        "causal codec language model (Firefly codec) with pseudo-speaker sampling and speaker-embedding noise mixing; "
+        "~180 ms reported latency",
+        "github.com/Plachtaa/StreamVoiceAnon @ 2017051 (inspected: evaluations/infer_arvc.py streaming API), Apache-2.0",
+        "Plachta/StreamVoiceAnon",
+        "code Apache-2.0; weights per model card",
+        "directly-implemented",
+        "engine `streamvoiceanon` (EXPERIMENTAL, CUDA only): setup_stream_caches / prefill_prompt / process_one_chunk in the "
+        "worker; `alpha` < 1 is the anonymisation knob. Not run here",
+        "@misc{kuzmin2026streamvoiceanon, title={Stream-Voice-Anon: Enhancing Utility of Real-Time Speaker Anonymization via Neural Audio Codec and Language Models}, author={Kuzmin, Nikita and Liu, Songting and Lee, Kong Aik and Chng, Eng Siong}, year={2026}, eprint={2601.13948}, archivePrefix={arXiv}}",
+    ),
+    Paper(
+        "streamvoiceanon-plus",
+        "StreamVoiceAnon+: Emotion-Preserving Streaming Speaker Anonymization via Frame-Level Acoustic Distillation",
+        "Interspeech 2026; arXiv 2603.06079",
+        "https://arxiv.org/abs/2603.06079",
+        "fine-tunes StreamVoiceAnon with frame-level acoustic (emotion) distillation",
+        "described in the StreamVoiceAnon README; models marked 'coming soon' at commit 2017051",
+        "not released at the inspected commit",
+        "n/a",
+        "blocked-weights",
+        "not integrated: no released weights",
+        "@misc{kuzmin2026streamvoiceanonplus, title={StreamVoiceAnon+: Emotion-Preserving Streaming Speaker Anonymization via Frame-Level Acoustic Distillation}, author={Kuzmin, Nikita and Lee, Kong Aik and Chng, Eng Siong}, year={2026}, eprint={2603.06079}, archivePrefix={arXiv}}",
+    ),
+    Paper(
+        "rvc",
+        "Retrieval-based Voice Conversion (RVC v1/v2)",
+        "community implementation (not peer-reviewed)",
+        "https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI",
+        "HuBERT/ContentVec features + FAISS index retrieval + RMVPE F0 + VITS/NSF-HiFiGAN decoder trained per voice",
+        "rvc-python (runtime of aivoice's rt_worker.py); RVC-Project WebUI and IAHispano/Applio realtime code read for the "
+        "block/SOLA design",
+        "per-voice .pth/.index from their uploaders",
+        "RVC-Project MIT; voice models per uploader",
+        "directly-implemented",
+        "engine `rvc`: rvc/rt_worker.py RvcRealtime (block + extra context + SOLA crossfade) behind the shared pipeline; "
+        "also its own sounddevice path (`virtualmic --engine rvc`). .pth files are pickles: trusted models only",
+        "% RVC has no paper; cite the repository: https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI",
+    ),
+    Paper(
+        "laroche-dolson",
+        "Improved phase vocoder time-scale modification of audio / New phase-vocoder techniques for pitch-shifting",
+        "IEEE Trans. Speech Audio Process. 7(3), 1999; IEEE WASPAA 1999",
+        "https://doi.org/10.1109/89.759041",
+        "identity phase locking around spectral peaks; pitch shifting by moving peak regions",
+        "n/a (algorithm)", "n/a", "n/a",
+        "adapted",
+        "modulation/dsp.py: identity phase locking on the excitation spectrum (experiment R: lower aperiodicity than plain "
+        "propagation at 32/48 ms windows; cross-frame peak matching measured worse and was dropped)",
+        "@article{laroche1999phase, title={Improved phase vocoder time-scale modification of audio}, author={Laroche, Jean and Dolson, Mark}, journal={IEEE Transactions on Speech and Audio Processing}, volume={7}, number={3}, pages={323--332}, year={1999}}",
+    ),
+    Paper(
+        "true-envelope",
+        "Efficient spectral envelope estimation and its application to pitch shifting and envelope preservation",
+        "DAFx 2005",
+        "https://www.dafx.de/paper-archive/2005/P_030.pdf",
+        "iterative cepstral 'true envelope' for formant-preserving pitch shifting",
+        "n/a (algorithm)", "n/a", "n/a",
+        "adapted",
+        "modulation/dsp.py _lifter_envelope (3 iterations, lifter order tied to the tracked F0); formant warping of that "
+        "envelope is aivoice's own use of it",
+        "@inproceedings{robel2005true, title={Efficient spectral envelope estimation and its application to pitch shifting and envelope preservation}, author={R{\\\"o}bel, Axel and Rodet, Xavier}, booktitle={Proceedings of DAFx}, year={2005}}",
+    ),
+    Paper(
+        "voice-gender-acoustics",
+        "Acoustic cues to perceived voice gender and body size (F0, formants / vocal-tract length, voice quality)",
+        "Peterson & Barney 1952 (JASA); Hillenbrand et al. 1995 (JASA); Fitch & Giedd 1999 (JASA); "
+        "Hillenbrand & Clark 2009 (Atten. Percept. Psychophys.); Skuk & Schweinberger 2014 (JSLHR)",
+        "https://doi.org/10.3758/APP.71.5.1150",
+        "perceived sex/masculinity depends on F0 and on formant frequencies (vocal-tract length), with smaller "
+        "contributions from aperiodicity/spectrum level; pitch alone does not make a voice sound male",
+        "n/a", "n/a", "n/a",
+        "unverified",
+        "not retrievable from this environment; used only as the rationale for testing formants alongside pitch. The "
+        "defaults come from aivoice's own measurements (experiments M, N, L), not from these papers' numbers",
+        "% unverified here (domain literature, not inspected in this session): Peterson & Barney 1952; Hillenbrand et al. 1995; Fitch & Giedd 1999; Hillenbrand & Clark 2009 doi:10.3758/APP.71.5.1150; Skuk & Schweinberger 2014 doi:10.1044/1092-4388(2013/12-0314)",
     ),
     Paper(
         "ge2e",

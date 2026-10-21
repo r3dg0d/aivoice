@@ -1,0 +1,49 @@
+{
+  "created": "2026-10-21_005607",
+  "machine": "vm",
+  "quality": "balanced",
+  "label": "synthetic speech; imitates no real person",
+  "loudness_lufs": -23.0,
+  "files": [
+    {
+      "path": "targets/synth-c.wav",
+      "what": "target reference synth-c",
+      "lufs": -23.0
+    },
+    {
+      "path": "targets/synth-d.wav",
+      "what": "target reference synth-d",
+      "lufs": -23.0
+    },
+    {
+      "path": "sources/synth-a.wav",
+      "what": "source synth-a",
+      "lufs": -23.0
+    },
+    {
+      "path": "sources/synth-b.wav",
+      "what": "source synth-b",
+      "lufs": -23.0
+    },
+    {
+      "path": "dsp/self__synth-a.wav",
+      "what": "dsp (balanced) synth-a -> self",
+      "lufs": -23.0
+    },
+    {
+      "path": "dsp/self__synth-b.wav",
+      "what": "dsp (balanced) synth-b -> self",
+      "lufs": -23.0
+    },
+    {
+      "path": "passthrough/self__synth-a.wav",
+      "what": "passthrough (balanced) synth-a -> self",
+      "lufs": -23.0
+    },
+    {
+      "path": "passthrough/self__synth-b.wav",
+      "what": "passthrough (balanced) synth-b -> self",
+      "lufs": -23.0
+    }
+  ]
+}
