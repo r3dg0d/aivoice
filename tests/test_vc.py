@@ -303,8 +303,9 @@ def test_catalog_only_engines_can_never_start(monkeypatch, tmp_path):
         assert not states[k].runnable
 
 
-def test_meanvc2_handler_drives_vcrunner(tmp_path):
-    pytest.importorskip("torch")
+def _fake_meanvc2(tmp_path):
+    """A VCRunner with upstream's public surface (run_rt.py @ 13acf84): CHUNK, process_chunk, the BN/vocoder
+    buffers that process_file drains. It records every chunk size it is called with."""
     vendor = tmp_path / "MeanVC2"
     (vendor / "runtime" / "src").mkdir(parents=True)
     (vendor / "runtime" / "src" / "__init__.py").write_text("")
@@ -314,12 +315,20 @@ def test_meanvc2_handler_drives_vcrunner(tmp_path):
         "class _VC:\n    def gtm(self, e):\n        return ('gtm', e)\n"
         "class VCRunner:\n"
         "    def __init__(self, target_wav, device='cpu', model='120ms'):\n"
-        "        self.target, self.vc, self.spk_model, self.calls = target_wav, _VC(), None, []\n"
-        "    def _init_cache(self):\n        self.buf = np.zeros(0, np.float32); self.calls.append('init')\n"
+        "        self.target, self.vc, self.spk_model, self.calls, self.sizes = target_wav, _VC(), None, [], []\n"
+        "        self.CHUNK, self.chunk_size, self.block_size = 2560, 4, 4\n"
+        "        self._min_bn_len = 8\n"
+        "    def _init_cache(self):\n        self.bn_buffer = None; self.last_wav = None; self.calls.append('init')\n"
         "    def process_chunk(self, x):\n"
-        "        self.buf = np.concatenate([self.buf, x])\n"
-        "        if self.buf.size < 640: return None\n"
-        "        out, self.buf = self.buf[:640] * 0.5, self.buf[640:]\n        return out\n")
+        "        self.sizes.append(x.size)\n"
+        "        self.last_wav = np.full(160, 0.25, np.float32)\n"
+        "        return x * 0.5\n")
+    return vendor
+
+
+def test_meanvc2_handler_drives_vcrunner(tmp_path):
+    pytest.importorskip("torch")
+    vendor = _fake_meanvc2(tmp_path)
     mod = load_worker_module()
     h = mod.MeanVC2Handler()
     cwd = os.getcwd()
@@ -328,12 +337,28 @@ def test_meanvc2_handler_drives_vcrunner(tmp_path):
         h.prepare({"reference": "b.wav"})
         assert h.runner.vc_spk_emb == "b.wav" and h.runner.vc_gtm_kv == ("gtm", "b.wav")
         h.start({})
-        assert h.chunk(np.ones(320, np.float32)).size == 0
-        assert np.allclose(h.chunk(np.ones(320, np.float32)), 0.5)
+        # 10 ms live blocks are re-chunked to exactly CHUNK samples: upstream's encoder assumes 2560 per call
+        outs = [h.chunk(np.ones(160, np.float32)) for _ in range(40)]
+        assert h.runner.sizes == [2560, 2560]
+        assert sum(o.size for o in outs) == 5120 and np.allclose(np.concatenate(outs), 0.5)
+        h.chunk(np.ones(1000, np.float32))
+        tail = h.flush()  # partial last chunk is fed unpadded, then the vocoder overlap is drained
+        assert h.runner.sizes[-1] == 1280 + 1000 and tail.size == 2280 + 160 and h.runner.last_wav is None
     finally:
         os.chdir(cwd)
         for k in [k for k in sys.modules if k in ("run_rt", "src", "src.speaker")]:
             del sys.modules[k]
+
+
+def test_target_bound_engines_defer_worker_start_until_reference(monkeypatch):
+    """LivePipeline.start() calls load() before prepare_reference(); MeanVC2/RVC must not try to spawn then."""
+    from aivoice.vc.engines import MeanVC2StreamEngine, RVCStreamEngine
+
+    for cls in (MeanVC2StreamEngine, RVCStreamEngine):
+        eng = cls(python=sys.executable)
+        monkeypatch.setattr(eng, "_spawn", lambda: (_ for _ in ()).throw(AssertionError("spawned without a target")))
+        eng.load()  # no target yet: must be a no-op, not an error
+        assert eng.worker is None
 
 
 def test_rt_worker_imports_nothing_heavy_at_module_level():
@@ -471,3 +496,49 @@ def test_roughness_modulates_voiced_amplitude():
     x = harmonic(seconds=1.0)
     y = SpectralModulator(SR, ModulationParams(roughness=1.0)).process_all(x)
     assert np.linalg.norm(y - x) / np.linalg.norm(x) > 0.05
+
+
+def test_live_runner_sizes_buffer_to_engine_bursts():
+    """A chunked engine that stalls 40 ms once per 160 ms must not underrun a paced stream (was: every chunk)."""
+    import time as _t
+
+    from aivoice.audio.capture import ArrayCapture
+    from aivoice.vc.base import BaseEngine, VCCapabilities
+    from aivoice.vc.live import PIPE_SR, LiveConfig, LivePipeline, LiveRunner
+
+    class Bursty(BaseEngine):
+        name = "bursty"
+
+        def __init__(self):
+            super().__init__()
+            self.pending = np.zeros(0, np.float32)
+
+        def capabilities(self):
+            return VCCapabilities(name="bursty", display_name="bursty", requires_reference=False, sample_rate=16000,
+                                  chunk_ms=160, devices=("cpu",))
+
+        def status(self):
+            raise NotImplementedError
+
+        def load(self):
+            self.loaded = True
+
+        def _process(self, x):
+            self.pending = np.concatenate([self.pending, x])
+            out = []
+            while self.pending.size >= 2560:
+                _t.sleep(0.04)
+                out.append(self.pending[:2560] * 0.5)
+                self.pending = self.pending[2560:]
+            return np.concatenate(out) if out else np.zeros(0, np.float32)
+
+    sr = 16000
+    tone = (0.2 * np.sin(2 * np.pi * 220 * np.arange(sr * 3) / sr)).astype(np.float32)
+    cfg = LiveConfig(engine="bursty", output_sink=None, fallback=[])
+    pipe = LivePipeline(cfg, Bursty())
+    r = LiveRunner(pipe, capture=ArrayCapture(tone, sr, target_rate=PIPE_SR, block_ms=10), driver_kind="clock")
+    r.start()
+    assert r.prebuffer_ms >= 50  # calibrated from the real 40 ms burst, not the 30 ms default
+    r.wait(3.5)
+    r.stop()
+    assert r.player.underruns <= 1  # at most one startup transient before audio

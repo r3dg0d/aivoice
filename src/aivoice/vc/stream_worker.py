@@ -303,6 +303,10 @@ class MeanVC2Handler:
         dev = "cuda" if req.get("device", "cuda") == "cuda" and torch.cuda.is_available() else "cpu"
         self.runner = VCRunner(target_wav=req["reference"], device=dev, model=req.get("model", "40ms"))
         self.device = dev
+        # VCRunner pins torch to 1 CPU thread; its JIT ASR encoder runs on the CPU (the TorchScript export
+        # cannot move to CUDA). 4 threads: 38.5 -> 32.8 ms per 160 ms chunk on an i9-14900K + RTX 4090,
+        # output identical within 2e-4.
+        torch.set_num_threads(max(1, int(req.get("cpu_threads", 4))))
         return {"sample_rate": 16000, **cuda_mem()}
 
     def prepare(self, req):
@@ -320,14 +324,59 @@ class MeanVC2Handler:
 
         torch.manual_seed(int(req.get("seed", 42)))
         self.runner._init_cache()
+        self.pending = np.zeros(0, np.float32)
         return {}
 
     def chunk(self, x):
-        y = self.runner.process_chunk(np.asarray(x, np.float32))
-        return np.zeros(0, np.float32) if y is None else y
+        # VCRunner._encode_chunk interpolates whatever BN frames one call produced to exactly 16 mel
+        # frames, i.e. it assumes every call carries CHUNK=2560 samples (160 ms). Feeding the 10 ms live
+        # blocks directly time-stretches the content (measured: GE2E target similarity 0.876 -> 0.825).
+        # So re-chunk to exactly CHUNK samples, as upstream's own realtime loop (blocksize=CHUNK) does.
+        self.pending = np.concatenate([getattr(self, "pending", np.zeros(0, np.float32)), np.asarray(x, np.float32)])
+        n = self.runner.CHUNK
+        outs = []
+        while self.pending.size >= n:
+            y = self.runner.process_chunk(self.pending[:n])
+            self.pending = self.pending[n:]
+            if y is not None:
+                outs.append(y)
+        return np.concatenate(outs).astype(np.float32) if outs else np.zeros(0, np.float32)
 
     def flush(self):
-        return np.zeros(0, np.float32)
+        """Feed the partial last chunk (no zero padding, like process_file), then drain the BN buffer and the vocoder overlap exactly like upstream VCRunner.process_file's tail."""
+        import torch
+
+        r = self.runner
+        parts = []
+        rest = getattr(self, "pending", np.zeros(0, np.float32))
+        self.pending = np.zeros(0, np.float32)
+        if rest.size:
+            y = r.process_chunk(rest)
+            if y is not None:
+                parts.append(y)
+        while r.bn_buffer is not None and r.bn_buffer.shape[1] >= r.chunk_size:
+            pad_cur = r.bn_buffer[:, :r.chunk_size, :]
+            if r.bn_buffer.shape[1] > r.chunk_size:
+                pad_fut = r.bn_buffer[:, r.chunk_size:r._min_bn_len, :]
+            else:
+                pad_fut = r.bn_buffer[:, -1:, :].repeat(1, r.block_size, 1)
+            cond = torch.cat([pad_cur, pad_fut], dim=1)
+            r.bn_buffer = r.bn_buffer[:, r.chunk_size:, :]
+            if r.bn_buffer.shape[1] == 0:
+                r.bn_buffer = None
+            parts.append(r._decode_mel(r._vc_step(cond)))
+        if r.bn_buffer is not None and r.bn_buffer.shape[1] > 0:
+            n_rem = r.bn_buffer.shape[1]
+            last = r.bn_buffer[:, -1:, :]
+            pad_cur = last.repeat(1, r.chunk_size, 1)
+            pad_cur[:, :n_rem, :] = r.bn_buffer
+            cond = torch.cat([pad_cur, last.repeat(1, r.block_size, 1)], dim=1)
+            r.bn_buffer = None
+            parts.append(r._decode_mel(r._vc_step(cond)))
+        if r.last_wav is not None:
+            parts.append(r.last_wav)
+            r.last_wav = None
+        return np.concatenate(parts).astype(np.float32) if parts else np.zeros(0, np.float32)
 
 
 class RVCHandler:

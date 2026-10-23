@@ -71,6 +71,7 @@ class Player:
         self._duck = 1.0
         self._target_duck = 1.0
         self.underruns = 0
+        self.rebuffer_on_underrun = False
         self.frames_out = 0
         self.peak = 0.0
         self.on_event = on_event
@@ -142,6 +143,9 @@ class Player:
         self.trimmed = getattr(self, "trimmed", 0) + dropped
         return dropped
 
+    def set_prebuffer_ms(self, ms: float) -> None:
+        self.prebuffer = int(self.sample_rate * ms / 1000)
+
     def set_gain_db(self, db: float) -> None:
         self._target_gain = 10 ** (db / 20)
 
@@ -199,6 +203,8 @@ class Player:
                         continue
                     self.underruns += 1
                     self._emit(PlaybackEvent("underrun", u.uid, now))
+                    if self.rebuffer_on_underrun:
+                        u.started = False  # build the prebuffer again instead of clicking on every later stall
                     break
                 chunk = u.chunks[0]
                 n = min(frames - pos, chunk.size)

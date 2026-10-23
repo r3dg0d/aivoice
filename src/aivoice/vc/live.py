@@ -395,6 +395,8 @@ class LiveRunner:
         self.driver_kind = driver_kind
         self.primary_factory = primary_factory
         self.player = Player(PIPE_SR, prebuffer_ms=int(pipeline.cfg.prebuffer_ms))
+        self.player.rebuffer_on_underrun = True
+        self.prebuffer_ms = float(pipeline.cfg.prebuffer_ms)
         self.driver = None
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
@@ -407,6 +409,7 @@ class LiveRunner:
 
         cfg = self.p.cfg
         self.p.start()
+        self._calibrate_prebuffer()
         if self.capture is None:
             self.capture = make_capture(device=cfg.input_device, sample_rate=PIPE_SR, block_ms=int(cfg.block_ms))
         self.capture.start()
@@ -416,6 +419,51 @@ class LiveRunner:
             t = threading.Thread(target=fn, name=name, daemon=True)
             t.start()
             self._threads.append(t)
+
+    MAX_PREBUFFER_MS = 200.0
+
+    def _calibrate_prebuffer(self) -> None:
+        """Engines that emit in chunks (MeanVC2 160 ms, RVC 150-350 ms) stall the per-block loop for their whole
+        compute time once per chunk. The output buffer must cover that burst or every chunk underruns
+        (measured with MeanVC2: 26 underruns in 25 s at a fixed 30 ms). Time real chunks on the loaded
+        engine, size the prebuffer to the burst, then reset the stream."""
+        caps = self.p.engine.capabilities()
+        chunk_ms = caps.chunk_ms or 0
+        if chunk_ms <= self.p.cfg.block_ms or caps.name in ("dsp", "passthrough"):
+            return
+        n = int((self.p.engine_sr or PIPE_SR) * chunk_ms / 1000)
+        times = []
+        # noise above any noise gate (RVC skips inference on silence, which would measure nothing)
+        probe = (np.random.default_rng(0).standard_normal(n) * 0.05).astype(np.float32)
+        try:
+            for _ in range(5):  # the first calls pay one-time CUDA/cuDNN setup: keep the last three
+                t = time.perf_counter()
+                self.p.engine.process_chunk(probe)
+                times.append((time.perf_counter() - t) * 1000)
+            worst = max(times[2:])
+            self.p.engine.start_stream(self.p.cfg.stream_options)
+        except Exception as e:  # noqa: BLE001
+            self.p.stats.errors.append(f"prebuffer calibration: {e}"[-300:])
+            return
+        self._set_prebuffer(worst * 1.25 + 10)
+
+    def _set_prebuffer(self, ms: float) -> None:
+        ms = min(self.MAX_PREBUFFER_MS, max(float(self.p.cfg.prebuffer_ms), ms))
+        if abs(ms - self.prebuffer_ms) >= 2:
+            self.prebuffer_ms = ms
+            self.player.set_prebuffer_ms(ms)
+
+    def _adapt_prebuffer(self) -> None:
+        """Track the engine's real bursts: grow quickly when p99 compute nears the buffer, shrink slowly."""
+        w = self.p.stats.window(300).get("engine_ms") or {}
+        if w.get("p99") is None:
+            return
+        # cover the recent worst burst too: one rare 55 ms spike over a 57 ms buffer is an audible click
+        want = max(w["p99"] * 1.25 + 10, w["max"] * 1.05 + 5)
+        if want > self.prebuffer_ms:
+            self._set_prebuffer(want)
+        elif want < self.prebuffer_ms - 10:
+            self._set_prebuffer(max(want, self.prebuffer_ms - 5))
 
     def _process_loop(self) -> None:
         while not self._stop.is_set():
@@ -429,7 +477,7 @@ class LiveRunner:
             with self.p._lock:
                 y = self.p.feed(block)
             self.player.write("stream", y)
-            self.player.trim_quiet("stream", self.p.cfg.prebuffer_ms + 30.0)
+            self.player.trim_quiet("stream", self.prebuffer_ms + 30.0)
 
     def _status_loop(self) -> None:
         last_gpu = 0.0
@@ -442,21 +490,28 @@ class LiveRunner:
                         self.p.apply_control(ctl)
                 if self.primary_factory is not None:
                     self.p.maybe_restart_primary(self.primary_factory)
+                self._adapt_prebuffer()
                 now = time.monotonic()
                 if now - last_gpu > 5.0:  # nvidia-smi / worker stats every 5 s, not every block
                     last_gpu = now
                     self.gpu = gpu_usage()
                     st = getattr(self.p.engine, "stats", None)
                     self.worker_stats = st() if callable(st) else {}
-                snap = self.p.snapshot()
-                snap.update({"underruns": self.player.underruns, "trimmed_ms": round(getattr(self.player, "trimmed", 0) * 1000 / PIPE_SR, 1), "dropped_blocks": getattr(self.capture, "dropped", 0),
-                             "capture_overflows": getattr(self.capture, "overflows", 0),
-                             "output_buffered_ms": round(self.player.buffered_ms(), 1), "gpu": self.gpu,
-                             "worker": self.worker_stats})
+                snap = self._full_snapshot()
                 _write_json(status_path(), snap)
             except Exception as e:  # noqa: BLE001
                 self.p.stats.errors.append(f"status: {e}")
             self._stop.wait(self.p.cfg.status_interval_s)
+
+    def _full_snapshot(self) -> dict[str, Any]:
+        snap = self.p.snapshot()
+        snap.update({"underruns": self.player.underruns, "trimmed_ms": round(getattr(self.player, "trimmed", 0) * 1000 / PIPE_SR, 1), "dropped_blocks": getattr(self.capture, "dropped", 0),
+                     "capture_overflows": getattr(self.capture, "overflows", 0),
+                     "output_buffered_ms": round(self.player.buffered_ms(), 1), "gpu": self.gpu,
+                     "worker": self.worker_stats, "prebuffer_ms": round(self.prebuffer_ms, 1),
+                     "end_to_end_estimate_ms": round((snap.get("algorithmic_latency_ms") or 0) + snap.get("pipeline_extra_latency_ms", 0)
+                                                     + self.prebuffer_ms + self.p.cfg.block_ms, 1)})
+        return snap
 
     def wait(self, duration_s: float | None = None) -> None:
         end = time.monotonic() + duration_s if duration_s else None
@@ -479,7 +534,7 @@ class LiveRunner:
             self.p.engine.unload()
         except Exception:  # noqa: BLE001
             pass
-        snap = self.p.snapshot()
+        snap = self._full_snapshot()
         snap["running"] = False
         _write_json(status_path(), snap)
 

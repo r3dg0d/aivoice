@@ -221,8 +221,18 @@ class WorkerVCEngine(BaseEngine):
     def _prepare_request(self, target: VoiceTarget | None) -> dict[str, Any]:
         return {"reference": str(target.reference) if target and target.reference else None}
 
+    # Engines whose worker needs the voice at construction (MeanVC2's VCRunner takes the reference wav, RVC
+    # loads the voice's .pth). LivePipeline.start() calls load() before prepare_reference(); for these the
+    # worker starts in prepare_reference() once the target is known.
+    needs_target_at_load = False
+
+    def _target_ready(self) -> bool:
+        return self.target is not None
+
     def load(self) -> None:
         if self.worker is not None and self.worker.running:
+            return
+        if self.needs_target_at_load and not self._target_ready():
             return
         st = self.status()
         if not st.ready:
@@ -357,12 +367,13 @@ class MeanVC2StreamEngine(WorkerVCEngine):
     modules = ("torch", "torchaudio", "safetensors")
 
     def capabilities(self) -> VCCapabilities:
-        m = "120ms" if self.options.quality == "best-quality" else "40ms"
-        chunk = 120.0 if m == "120ms" else 40.0
+        # Upstream's runtime consumes audio in CHUNK=2560-sample (160 ms) calls for both models (see the
+        # worker); the 40/120 ms names are the DiT's internal chunk. Algorithmic latency = 160 ms input
+        # chunk + 40 ms future context (+ ~10 ms vocoder overlap), measured end to end by `benchmark vc`.
         return VCCapabilities(
             name="meanvc2", display_name="MeanVC2 (resident streaming)", task=TASK_VC, zero_shot=True,
-            requires_reference=True, supports_cross_lingual=None, sample_rate=16000, chunk_ms=chunk, lookahead_ms=40.0,
-            algorithmic_latency_ms=chunk + 40.0, devices=("cuda", "cpu"),
+            requires_reference=True, supports_cross_lingual=None, sample_rate=16000, chunk_ms=160.0, lookahead_ms=40.0,
+            algorithmic_latency_ms=210.0, devices=("cuda", "cpu"),
             license="README claims Apache-2.0; LICENSE file missing upstream (see NOTICE)",
             code=f"{PINS['meanvc2'][0]} @ {PINS['meanvc2'][1][:7]} runtime/run_rt.py VCRunner",
             weights="ASLP-lab/MeanVC2 + WavLM speaker model (initialization.py)", paper="arXiv:2606.09050",
@@ -389,7 +400,13 @@ class MeanVC2StreamEngine(WorkerVCEngine):
         if ref is None:
             raise VCError("MeanVC2 needs the target reference before loading (VCRunner takes it at construction)")
         return {"device": self.device, "vendor_dir": str(vendor_dir()), "reference": str(ref),
-                "model": "120ms" if self.options.quality == "best-quality" else "40ms"}
+                "model": "120ms" if self.options.quality == "best-quality" else "40ms",
+                "cpu_threads": int(_cfg("meanvc2", "cpu_threads", 4))}
+
+    needs_target_at_load = True
+
+    def _target_ready(self) -> bool:
+        return self.target is not None and self.target.reference is not None
 
     def prepare_reference(self, target: VoiceTarget | None) -> None:
         BaseEngine.prepare_reference(self, target)
@@ -424,6 +441,11 @@ class RVCStreamEngine(WorkerVCEngine):
             install="scripts/aivoice-runtime/build-rvc-venv.sh (Python 3.10 venv with rvc-python)",
             notes="Not zero-shot: needs a model trained on the target voice. .pth files are pickles: rvc-python loads "
                   "them with code execution, so only use models you trust. Latency = block + crossfade + 10 ms SOLA search.")
+
+    needs_target_at_load = True
+
+    def _target_ready(self) -> bool:
+        return self.target is not None and self.target.model_file is not None
 
     def status(self) -> EngineStatusVC:
         st = super().status()
