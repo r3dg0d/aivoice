@@ -564,3 +564,13 @@ def test_keep_virtual_mic_switch(monkeypatch):
     assert _keep_virtual_mic() is False
     monkeypatch.setenv("AIVOICE_KEEP_VIRTUAL_MIC", "1")
     assert _keep_virtual_mic() is True
+
+
+def test_prebuffer_never_adapts_below_calibration():
+    from aivoice.vc.live import LiveConfig, LivePipeline, LiveRunner
+    from aivoice.vc.engines import PassthroughEngine
+
+    r = LiveRunner(LivePipeline(LiveConfig(engine="passthrough", output_sink=None), PassthroughEngine()), driver_kind="clock")
+    r.calibrated_ms = 55.0
+    r._set_prebuffer(10.0)
+    assert r.prebuffer_ms == 55.0

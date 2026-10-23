@@ -95,7 +95,7 @@ def _input_device(explicit: str | None) -> str | None:
 
 
 def run_live_unified(*, engine, cfg, target=None, input_file: Path | None = None, output: str = "virtual",
-                     duration: float | None = None, quiet: bool = False) -> int:
+                     duration: float | None = None, quiet: bool = False, owns_virtual_mic: bool | None = None) -> int:
     """Foreground live session on the shared pipeline (Ctrl-C / `aivoice vc stop` to end)."""
     from .audio.capture import ArrayCapture
     from .vc.engines import get_vc_engine
@@ -109,7 +109,7 @@ def run_live_unified(*, engine, cfg, target=None, input_file: Path | None = None
     if output == "virtual":
         info = ensure_virtual_mic("aivoice")
         cfg.output_sink = info.sink or "aivoice_sink"
-        created_mic = not info.reused and bool(info.module_ids)
+        created_mic = (not info.reused and bool(info.module_ids)) if owns_virtual_mic is None else owns_virtual_mic
         click.echo(f"Output    {info.hint}")
     elif output == "default":
         cfg.output_sink = None

@@ -397,6 +397,7 @@ class LiveRunner:
         self.player = Player(PIPE_SR, prebuffer_ms=int(pipeline.cfg.prebuffer_ms))
         self.player.rebuffer_on_underrun = True
         self.prebuffer_ms = float(pipeline.cfg.prebuffer_ms)
+        self.calibrated_ms = 0.0  # measured real-chunk burst: the buffer never adapts below it
         self.driver = None
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
@@ -445,10 +446,13 @@ class LiveRunner:
         except Exception as e:  # noqa: BLE001
             self.p.stats.errors.append(f"prebuffer calibration: {e}"[-300:])
             return
-        self._set_prebuffer(worst * 1.25 + 10)
+        self.calibrated_ms = worst * 1.25 + 10
+        self._set_prebuffer(self.calibrated_ms)
 
     def _set_prebuffer(self, ms: float) -> None:
-        ms = min(self.MAX_PREBUFFER_MS, max(float(self.p.cfg.prebuffer_ms), ms))
+        # never below the calibrated burst: in silence a gated engine (RVC) computes nothing, and shrinking to
+        # that would underrun the first words after a pause
+        ms = min(self.MAX_PREBUFFER_MS, max(float(self.p.cfg.prebuffer_ms), self.calibrated_ms, ms))
         if abs(ms - self.prebuffer_ms) >= 2:
             self.prebuffer_ms = ms
             self.player.set_prebuffer_ms(ms)

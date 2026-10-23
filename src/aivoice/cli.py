@@ -163,7 +163,8 @@ def _vc_options(f):
 
 
 def _run_unified(vc_engine, *, reference, profile, voice, mode, device, priority, input_device, pitch, index_rate,
-                 post_preset, modulate_strength, denoise, fallback, test_input, duration, output="virtual"):
+                 post_preset, modulate_strength, denoise, fallback, test_input, duration, output="virtual",
+                 owns_virtual_mic: bool | None = None):
     from .cli_vc import _input_device, _strength, build_engine, resolve_target, run_live_unified
     from .vc.base import StreamOptions
     from .vc.live import LiveConfig
@@ -189,7 +190,8 @@ def _run_unified(vc_engine, *, reference, profile, voice, mode, device, priority
     click.echo(f"Engine    {eng.capabilities().display_name}" + (f"   [{note}]" if note else ""))
     click.echo(f"Voice     {cfg.voice or '-'}   quality {mode}   fallback {' -> '.join(cfg.fallback + ['passthrough'])}")
     click.echo(f"Input     {cfg.input_device or '(default source)'}")
-    return run_live_unified(engine=eng, cfg=cfg, target=target, input_file=test_input, output=output, duration=duration)
+    return run_live_unified(engine=eng, cfg=cfg, target=target, input_file=test_input, output=output, duration=duration,
+                            owns_virtual_mic=owns_virtual_mic)
 
 
 @main.command("live")
@@ -303,9 +305,12 @@ def file_cmd(input_wav, reference, profile, voice, output, mode, device, backend
 @click.option("--setup-only", is_flag=True, help="Only create null sink / remap source")
 @click.option("--engine", "rt_engine",
               type=click.Choice(["rvc", "meanvc2", "auto", "xvc", "dsp", "stylestream", "streamvoiceanon"]), default=None,
-              help="Realtime engine (default: the voice's saved choice; RVC v2 when it has a .pth). rvc/meanvc2 use "
-                   "their own runtimes unless --unified; the others always run on aivoice's shared pipeline")
-@click.option("--unified", is_flag=True, help="Run rvc/meanvc2 on the shared pipeline too (fallback, status, modulation)")
+              help="Realtime engine (default: the voice's saved choice; RVC v2 when it has a .pth). Every engine runs "
+                   "on aivoice's shared pipeline (fallback, adaptive buffer, live status) unless --legacy-runtime")
+@click.option("--unified", is_flag=True, hidden=True, help="Kept for compatibility: the shared pipeline is the default")
+@click.option("--legacy-runtime", is_flag=True,
+              help="rvc/meanvc2 only: the previous standalone runtimes (rt_worker.py / upstream run_rt.py) instead of the "
+                   "shared pipeline")
 @click.option("--denoise", type=float, default=None, help="Shared pipeline: pre-VC noise suppression 0..1")
 @click.option("--priority", default="balanced", show_default=True, help="For --engine auto")
 def virtualmic_cmd(
@@ -322,6 +327,7 @@ def virtualmic_cmd(
     setup_only,
     rt_engine,
     unified,
+    legacy_runtime,
     priority,
     denoise,
 ):
@@ -397,10 +403,21 @@ def virtualmic_cmd(
     if setup_only:
         click.echo("Ready (setup-only)")
         return
-    if rt_engine and (unified or rt_engine not in ("rvc", "meanvc2")):
-        _run_unified(rt_engine, reference=reference, profile=profile, voice=voice, mode=mode, device=device, priority=priority,
+    if not legacy_runtime or (rt_engine and rt_engine not in ("rvc", "meanvc2")):
+        use = rt_engine
+        if use is None:
+            use = "meanvc2"
+            if voice:
+                try:
+                    from .pipeline import voice_rt_settings
+
+                    use = voice_rt_settings(load_voice(voice))["engine"]
+                except FileNotFoundError:
+                    pass
+        _run_unified(use, reference=reference, profile=profile, voice=voice, mode=mode, device=device, priority=priority,
                      input_device=None, pitch=None, index_rate=None, post_preset=None, modulate_strength=None,
-                     denoise=denoise or None, fallback="dsp", test_input=None, duration=None, output="virtual")
+                     denoise=denoise or None, fallback="dsp", test_input=None, duration=None, output="virtual",
+                     owns_virtual_mic=not info.reused)
         return
     try:
         from .pipeline import run_live_rvc, voice_rt_settings
