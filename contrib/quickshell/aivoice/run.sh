@@ -2,13 +2,13 @@
 # aivoice widget backend. run.sh start VOICE MODE [ENGINE] | modstart PRESET STRENGTH [--flag v ...] | stop | status |
 #   vcstatus | vcengines | presets | modset PRESET STRENGTH [k=v ...] | bypass | presetsave NAME PRESET STRENGTH [--flag v ...] |
 #   s2sstatus | s2sstart | s2sstop | s2sasr NAME | s2spreset NAME | s2sllm on|off |
-#   voices | doctor | devices | search Q | install ID | setup | models-install |
+#   voices | doctor | devices | search Q | install ID | setup | models-install | models | verify NAME | install-model NAME |
 #   repro | reprocontrol pause|resume|stop OUTPUT   (paper reproductions; training runs as its own background process)
 # Every live mode (VC, modulation) plays into the same aivoice-virtual-mic; only one runs at a time.
 set -u
 AIV="${AIVOICE_BIN:-$HOME/.local/bin/aivoice}"
 A="$HOME/.local/share/aivoice"
-export PATH="$A/gcroot-pulse/bin:$A/gcroot-espeak/bin:$HOME/.local/bin:$HOME/.nix-profile/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:$PATH"
+export PATH="$A/gcroots/pulseaudio/bin:$A/gcroots/espeak-ng/bin:$A/gcroot-pulse/bin:$A/gcroot-espeak/bin:$HOME/.local/bin:$HOME/.nix-profile/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:$PATH"
 st="${XDG_STATE_HOME:-$HOME/.local/state}/aivoice-widget"; mkdir -p "$st"
 log="$HOME/.cache/aivoice-widget.log"; mkdir -p "$HOME/.cache"; pidf="$st/virtualmic.pid"
 running() { [ -f "$pidf" ] && kill -0 "$(cat "$pidf")" 2>/dev/null; }
@@ -33,6 +33,7 @@ case "${1:-}" in
     running && echo "Modulation live: $p @ $s → select 'aivoice' as your mic" || { echo "modulate exited — see log"; rm -f "$pidf"; } ;;
   vcstatus) "$AIV" vc status --json 2>/dev/null || echo '{"running":false}' ;;
   vcengines) "$AIV" vc engines --json 2>/dev/null || echo '[]' ;;
+  vcstop) "$AIV" vc stop 2>&1 | tail -1 ;;
   presets) "$AIV" modulate preset list --json 2>/dev/null || echo '[]' ;;
   modset)
     p="${2:-}"; s="${3:-}"; shift 3 2>/dev/null || shift $#; args=()
@@ -72,6 +73,9 @@ case "${1:-}" in
     timeout 0.4 parec -d "$src" --format=s16le --channels=1 --rate=16000 --raw 2>/dev/null | python3 -c "import sys,array,math;a=array.array('h',sys.stdin.buffer.read());r=math.sqrt(sum(x*x for x in a)/len(a)) if a else 0;print(round(min(1,r/3000),3))" ;;
   rt) shift; v="$1"; shift; "$AIV" voices rt "$v" --json "$@" 2>/dev/null || echo '{}' ;;
   models-install) "$AIV" models install meanvc2 --yes 2>&1 | tail -15 ;;
+  models) "$AIV" models list --json 2>/dev/null || echo "[]" ;;
+  verify) "$AIV" models verify "$2" 2>&1 | tail -12 ;;
+  install-model) "$AIV" models install "$2" --yes 2>&1 | tail -12 ;;
   fix)
     V="$HOME/.local/share/aivoice/venv/bin"; export LD_LIBRARY_PATH="$(cat "$HOME/.local/share/aivoice/ldpath")"
     case "${2:-}" in

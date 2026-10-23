@@ -1479,8 +1479,26 @@ def models_update(name, yes, remove_old):
 @click.command("verify")
 @click.argument("name")
 @click.option("--quick", is_flag=True, help="Sizes only, skip SHA-256")
-def models_verify(name, quick):
-    """Check sizes and LFS SHA-256 of an installed snapshot against the recorded Hub manifest."""
+@click.option("--json", "as_json", is_flag=True)
+def models_verify(name, quick, as_json):
+    """Re-hash an installed model against pinned SHA-256: catalog engines (meanvc2, tvtsyn, rvc-base, rvc-testvoice)
+    or a Hub snapshot recorded by the model manager. Presence alone is never treated as proof."""
+    from .models import verify_model
+
+    try:
+        r = verify_model(name)
+    except KeyError:
+        r = None
+    if r is not None:
+        if as_json:
+            click.echo(json.dumps(r, indent=2))
+        else:
+            click.echo(f"{name}: {'OK' if r['ok'] else 'FAILED'}")
+            for f in r["files"]:
+                click.echo(f"  {'ok ' if f.get('ok') else 'BAD'} {f['path']}  [{f.get('trust')}]" + (f"  {f['reason']}" if f.get("reason") else ""))
+        if not r["ok"]:
+            raise click.ClickException("verification failed (repair: aivoice models install " + name + " --yes)")
+        return
     try:
         r = _manager().verify(name, hash_files=not quick)
     except Exception as e:  # noqa: BLE001

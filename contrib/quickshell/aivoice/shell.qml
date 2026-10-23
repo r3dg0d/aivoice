@@ -40,8 +40,11 @@ ShellRoot {
     property real level: 0
     property bool fixing: false
     readonly property var modes: ["lowest-latency", "balanced", "best-quality"]
-    readonly property var mainEngines: ["auto", "xvc", "rvc", "meanvc2"]
+    readonly property var mainEngines: ["auto", "tvtsyn", "rvc", "meanvc2", "xvc"]
     readonly property var expEngines: ["stylestream", "streamvoiceanon", "vossa", "rtvc", "zerovc-repro", "tvtsyn-repro", "tvtsyn-aivoice"]
+    property var models: []
+    // a session is live when the widget started it OR any `aivoice live/virtualmic/modulate` session reports in vc.json
+    readonly property bool isLive: !!st.running || !!live.running
     property var repro: []
     onMajorChanged: if (major === "res") sh(reproP, ["repro"])
     readonly property var mainPresets: ["natural", "masculine", "feminine", "deep", "warm", "bright", "broadcast", "robotic"]
@@ -68,7 +71,7 @@ ShellRoot {
         return a
     }
     function setAdv(k, v) { const d = Object.assign({}, root.adv); d[k] = v; root.adv = d; root.pushMod() }
-    function pushMod() { if (root.st.running && root.live.mode === "modulation") sh(modsetP, ["modset", root.preset, String(Math.round(root.strength))].concat(advParams())) }
+    function pushMod() { if (root.live.running && root.live.mode === "modulation") sh(modsetP, ["modset", root.preset, String(Math.round(root.strength))].concat(advParams())) }
     function fmt(v, unit) { return (v === undefined || v === null) ? "–" : (Math.round(v * 10) / 10) + (unit || "") }
 
     IpcHandler { target: "aivoice"; function show(): void { root.opened = true; root.refresh() } function open(): void { root.opened = true; root.refresh(); root.sh(doctorP, ["doctor"]) } function toggle(): void { root.opened = !root.opened } function tab(name: string): void { root.opened = true; root.tab = name; if (name === "doctor") root.sh(doctorP, ["doctor"]) } function mode(name: string): void { root.opened = true; root.major = name } function bypass(): void { root.sh(actP, ["bypass"]) } }
@@ -90,14 +93,20 @@ ShellRoot {
     Process { id: rtP; stdout: StdioCollector { onStreamFinished: { try { const j = JSON.parse(text); if (j.engine) root.rt = j } catch (e) {} } } }
     function setRt(args) { sh(rtP, ["rt", root.voice].concat(args)) }
     Process { id: logP; stdout: StdioCollector { onStreamFinished: root.logText = text } }
+    Process { id: modelsP; stdout: StdioCollector { onStreamFinished: { try { root.models = JSON.parse(text) } catch (e) { root.models = [] } } } }
     function refresh() { sh(statusP, ["status"]); sh(voicesP, ["voices"]); sh(liveP, ["vcstatus"]); if (root.major === "s2s") sh(s2sP, ["s2sstatus"]) }
     // live metrics every 2 s (the session itself writes them once a second; nothing expensive is polled here)
     Timer { interval: 2000; running: root.opened; repeat: true; triggeredOnStart: true; onTriggered: { root.sh(statusP, ["status"]); if (!liveP.running) root.sh(liveP, ["vcstatus"]); if (root.major === "s2s" && !s2sP.running) root.sh(s2sP, ["s2sstatus"]); if (root.major === "res" && !reproP.running) root.sh(reproP, ["repro"]); if (root.tab === "logs") root.sh(logP, ["log"]) } }
     // engine availability changes rarely: every 60 s
     Timer { interval: 60000; running: root.opened; repeat: true; triggeredOnStart: true; onTriggered: if (!enginesP.running) root.sh(enginesP, ["vcengines"]) }
-    Component.onCompleted: { sh(inputsP, ["inputs"]); sh(voicesP, ["voices"]); sh(doctorP, ["doctor"]); sh(presetsP, ["presets"]) }
+    Component.onCompleted: {
+        sh(inputsP, ["inputs"]); sh(voicesP, ["voices"]); sh(doctorP, ["doctor"]); sh(presetsP, ["presets"]); sh(modelsP, ["models"])
+        // test hooks (offscreen screenshots): AIVOICE_UI_MAJOR=vc|mod|s2s|res AIVOICE_UI_TAB=voices|models|...
+        if (Quickshell.env("AIVOICE_UI_MAJOR")) major = Quickshell.env("AIVOICE_UI_MAJOR")
+        if (Quickshell.env("AIVOICE_UI_TAB")) tab = Quickshell.env("AIVOICE_UI_TAB")
+    }
 
-    component Card: Rectangle { radius: 14; color: "#120f22"; border.color: "#2a2344"; Layout.fillWidth: true }
+    component Card: GalaxyPanel { radius: Galaxy.radiusTile; Layout.fillWidth: true }
     component Label2: Text { font.family: "Cellforge"; color: "#8a84a8"; font.pixelSize: 10; font.letterSpacing: 1.5 }
     component Metric: ColumnLayout { property string k: ""; property string v: "–"; spacing: 0; Layout.fillWidth: true
         Label2 { text: parent.k }
@@ -105,7 +114,7 @@ ShellRoot {
     component SliderRow: RowLayout { id: sr; property string label: ""; property real from: 0; property real to: 1; property real step: 0.05; property real value: 0; property string unit: ""; signal moved(real v)
         Layout.fillWidth: true; spacing: 8
         Label2 { Layout.preferredWidth: 96; text: sr.label + " " + (Math.round(sr.value * 100) / 100) + sr.unit }
-        Slider { Layout.fillWidth: true; from: sr.from; to: sr.to; stepSize: sr.step; value: sr.value; onPressedChanged: if (!pressed) sr.moved(value) } }
+        GalaxySlider { Layout.fillWidth: true; from: sr.from; to: sr.to; stepSize: sr.step; value: sr.value; onPressedChanged: if (!pressed) sr.moved(value) } }
 
     FloatingWindow {
         id: window
@@ -115,10 +124,14 @@ ShellRoot {
         minimumSize: Qt.size(500, 600)
         color: "transparent"
         onClosed: root.opened = false
-        Rectangle {
-            anchors.fill: parent; radius: 22; border.color: "#3a2f5c"; border.width: 1
-            color: "#0e0a1c"  // solid: rounded-rect vertex gradients interpolate per triangle -> visible seam at the diagonal
-        }
+        Timer { interval: 3000; running: !!Quickshell.env("AIVOICE_UI_SCREENSHOT"); onTriggered: frame.grabToImage(function(r) { r.saveToFile(Quickshell.env("AIVOICE_UI_SCREENSHOT")); if (Quickshell.env("AIVOICE_UI_SCREENSHOT_QUIT")) Qt.quit() }) }
+        Item {
+            id: frame
+            anchors.fill: parent
+            // gradient + stars painted by a Canvas clipped to the rounded rect: a gradient on a rounded Rectangle
+            // is interpolated per triangle and shows a seam at the diagonal
+            Starfield { anchors.fill: parent; cornerRadius: Galaxy.radiusWindow; seed: 3; paintBase: true }
+            Rectangle { anchors.fill: parent; radius: Galaxy.radiusWindow; color: "transparent"; border.color: Galaxy.edge; border.width: 1 }
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 20; spacing: 10
             RowLayout {
@@ -129,11 +142,11 @@ ShellRoot {
                 }
                 Rectangle {
                     implicitWidth: lr.implicitWidth + 18; implicitHeight: 24; radius: 12
-                    color: root.st.running ? "#1d3a2a" : "#1a1630"; border.color: root.st.running ? "#7dffa8" : "#3a2f5c"
+                    color: root.isLive ? "#1d3a2a" : "#1a1630"; border.color: root.isLive ? "#7dffa8" : "#3a2f5c"
                     RowLayout { id: lr; anchors.centerIn: parent; spacing: 6
-                        Rectangle { width: 8; height: 8; radius: 4; color: root.st.running ? "#7dffa8" : "#5d5878"
-                            SequentialAnimation on opacity { running: root.st.running; loops: Animation.Infinite; NumberAnimation { to: 0.25; duration: 700 } NumberAnimation { to: 1; duration: 700 } } }
-                        Text { font.family: "Cellforge"; font.pixelSize: 10; color: "#f2f0ff"; text: root.st.running ? (root.live.bypass ? "BYPASS" : "LIVE") : "OFFLINE" } }
+                        Rectangle { width: 8; height: 8; radius: 4; color: root.isLive ? "#7dffa8" : "#5d5878"
+                            SequentialAnimation on opacity { running: root.isLive; loops: Animation.Infinite; NumberAnimation { to: 0.25; duration: 700 } NumberAnimation { to: 1; duration: 700 } } }
+                        Text { font.family: "Cellforge"; font.pixelSize: 10; color: "#f2f0ff"; text: root.isLive ? (root.live.muted ? "MUTED" : root.live.bypass ? "BYPASS" : "LIVE") : "OFFLINE" } }
                 }
                 GalaxyButton { text: "×"; hint: "Hide · virtual mic keeps running"; onClicked: root.opened = false }
             }
@@ -145,14 +158,14 @@ ShellRoot {
             }
             // hero + live metrics (shared by VC and modulation: both use aivoice-virtual-mic)
             Card {
-                implicitHeight: heroCol.implicitHeight + 28; border.color: root.st.running ? "#5b3d99" : "#2a2344"; visible: root.major !== "s2s"
+                implicitHeight: heroCol.implicitHeight + 28; hot: root.isLive; visible: root.major !== "s2s"
                 ColumnLayout { id: heroCol; anchors.fill: parent; anchors.margins: 14; spacing: 8
                     RowLayout { spacing: 14
-                        Text { font.family: "JetBrainsMono Nerd Font"; text: root.st.running ? "󰍬" : "󰍭"; font.pixelSize: 44; color: "#b46bff" }
+                        Text { font.family: "JetBrainsMono Nerd Font"; text: root.isLive ? "󰍬" : "󰍭"; font.pixelSize: 44; color: "#b46bff" }
                         ColumnLayout { Layout.fillWidth: true; spacing: 3
                             Label2 { text: root.major === "vc" ? "TARGET VOICE" : "YOUR VOICE · PRESET" }
                             Text { Layout.fillWidth: true; elide: Text.ElideRight; font.family: "Zerodot"; font.pixelSize: 18; color: "#f2f0ff"
-                                text: root.major === "vc" ? (root.voice || "no voice installed") : (root.preset + " · " + Math.round(root.strength) + "%") }
+                                text: root.major === "vc" ? ((root.live.running && root.live.voice) || root.voice || "no voice installed") : (root.preset + " · " + Math.round(root.strength) + "%") }
                             Text { font.family: "NullType"; font.pixelSize: 11; color: "#9a96b3"
                                 text: (root.live.running ? ("engine " + root.live.engine + (root.live.engine !== root.live.selected_engine ? " (fallback from " + root.live.selected_engine + ")" : "")) : ("mode " + root.mode)) + "   ·   v" + (root.st.version || "?") + (root.st.running ? "   ·   pid " + root.st.pid : "") }
                         }
@@ -166,7 +179,15 @@ ShellRoot {
                         Metric { k: "VRAM"; v: root.live.worker && root.live.worker.vram_allocated_mib !== undefined ? root.fmt(root.live.worker.vram_allocated_mib, " MiB") : (root.live.gpu && root.live.gpu.mem_used_mib !== undefined ? root.live.gpu.mem_used_mib + " MiB" : "–") }
                         Metric { k: "UNDERRUNS / DROPS"; v: (root.live.underruns || 0) + " / " + (root.live.dropped_blocks || 0) }
                         Metric { k: "RATE"; v: (root.live.sample_rate || "–") + " / " + (root.live.engine_sample_rate || "–") }
+                        Metric { k: "OUT BUFFER"; v: root.fmt(root.live.prebuffer_ms, " ms") }
+                        Metric { k: "MIC→VIRTUAL EST."; v: root.fmt(root.live.end_to_end_estimate_ms, " ms") }
+                        Metric { k: "FALLBACKS"; v: String((root.live.fallbacks || []).length) }
+                        Metric { k: "UPTIME"; v: root.fmt(root.live.uptime_s, " s") }
                     }
+                    GalaxyPill { visible: !!root.live.running && ((root.live.fallbacks || []).length > 0 || (root.live.underruns || 0) > 0)
+                        state_: (root.live.fallbacks || []).length ? "err" : "warn"
+                        text: (root.live.fallbacks || []).length ? "FALLBACK: " + root.live.engine + " (from " + root.live.selected_engine + ")"
+                                                                : "DROPOUTS: " + root.live.underruns + " underruns" }
                     RowLayout { Layout.fillWidth: true; spacing: 8
                         Label2 { text: "IN" }
                         Rectangle { Layout.fillWidth: true; implicitHeight: 8; radius: 4; color: "#1a1630"; border.color: "#26223a"
@@ -192,12 +213,13 @@ ShellRoot {
                 Label2 { text: "ENGINE" }
                 RowLayout { spacing: 6; Layout.fillWidth: true
                     GalaxyButton { implicitHeight: 30; text: "Voice default"; hint: "The voice's saved engine: RVC v2 when it has a .pth, else MeanVC2 (previous runtime path)"
-                        selected: root.vcEngine === "default"; enabled: !root.st.running; onClicked: root.vcEngine = "default" }
+                        selected: root.vcEngine === "default"; enabled: !root.isLive; onClicked: root.vcEngine = "default" }
                     Repeater { model: root.mainEngines
                         GalaxyButton { required property string modelData; implicitHeight: 30; Layout.fillWidth: true
-                            text: ({ auto: "Auto", xvc: "X-VC", rvc: "RVC", meanvc2: "MeanVC2" })[modelData] + (root.engRunnable(modelData) ? "" : " ·")
-                            hint: modelData === "auto" ? "Pick from LOCAL benchmark results (aivoice benchmark vc); never from paper numbers" : root.stateText(root.engState(modelData)) + (root.eng(modelData) ? " — " + root.eng(modelData).detail : "")
-                            selected: root.vcEngine === modelData; enabled: !root.st.running && root.engRunnable(modelData)
+                            text: ({ auto: "Auto", tvtsyn: "TVTSyn (NC)", xvc: "X-VC", rvc: "RVC", meanvc2: "MeanVC2" })[modelData] + (root.engRunnable(modelData) ? "" : " ·")
+                            hint: modelData === "auto" ? "Pick from LOCAL benchmark results (aivoice benchmark vc); never from paper numbers"
+                                : root.stateText(root.engState(modelData)) + (root.eng(modelData) ? " — " + root.eng(modelData).caps.license + " — " + root.eng(modelData).detail : "")
+                            selected: root.vcEngine === modelData; enabled: !root.isLive && root.engRunnable(modelData)
                             onClicked: root.vcEngine = modelData } }
                 }
                 GalaxyButton { implicitHeight: 26; text: (root.showExperimental ? "▾" : "▸") + " Experimental engines"; onClicked: root.showExperimental = !root.showExperimental }
@@ -206,15 +228,15 @@ ShellRoot {
                         GalaxyButton { required property string modelData; implicitHeight: 28
                             text: modelData + "  ·  " + root.stateText(root.engState(modelData))
                             hint: root.eng(modelData) ? (root.eng(modelData).caps.notes || root.eng(modelData).detail) : ""
-                            selected: root.vcEngine === modelData; enabled: !root.st.running && root.engRunnable(modelData)
+                            selected: root.vcEngine === modelData; enabled: !root.isLive && root.engRunnable(modelData)
                             onClicked: root.vcEngine = modelData } }
                 }
                 RowLayout { Layout.fillWidth: true; spacing: 10; visible: root.vcEngine === "rvc" || (root.vcEngine === "default" && root.rt.engine === "rvc")
                     Label2 { text: "PITCH " + (root.rt.pitch > 0 ? "+" : "") + Math.round(root.rt.pitch) }
-                    Slider { Layout.fillWidth: true; from: -24; to: 24; stepSize: 1; value: root.rt.pitch; enabled: !root.st.running
+                    GalaxySlider { Layout.fillWidth: true; from: -24; to: 24; stepSize: 1; value: root.rt.pitch; enabled: !root.isLive
                         onPressedChanged: if (!pressed) root.setRt(["--pitch", String(value)]) }
                     Label2 { text: "INDEX " + Number(root.rt.index_rate).toFixed(2) }
-                    Slider { Layout.preferredWidth: 140; from: 0; to: 1; stepSize: 0.05; value: root.rt.index_rate; enabled: !root.st.running && !!root.rt.rvc_index
+                    GalaxySlider { Layout.preferredWidth: 140; from: 0; to: 1; stepSize: 0.05; value: root.rt.index_rate; enabled: !root.isLive && !!root.rt.rvc_index
                         onPressedChanged: if (!pressed) root.setRt(["--index-rate", String(value)]) }
                 }
                 SliderRow { label: "NOISE SUPPR."; from: 0; to: 1; step: 0.05; value: root.denoise; visible: root.vcEngine !== "default" && root.vcEngine !== "rvc" && root.vcEngine !== "meanvc2"
@@ -327,9 +349,9 @@ ShellRoot {
             }
 
             RowLayout { Layout.fillWidth: true; spacing: 6; visible: root.major === "vc"
-                Repeater { model: [["voices", "󰗅 Voices"], ["search", "󰍉 Search"], ["doctor", "󰓙 Health"], ["logs", "󰦪 Logs"]]
+                Repeater { model: [["voices", "󰗅 Voices"], ["search", "󰍉 Search"], ["models", "󰆼 Models"], ["doctor", "󰓙 Health"], ["logs", "󰦪 Logs"]]
                     GalaxyButton { required property var modelData; text: modelData[1]; selected: root.tab === modelData[0]; Layout.fillWidth: true; implicitHeight: 30
-                        onClicked: { root.tab = modelData[0]; if (root.tab === "logs") root.sh(logP, ["log"]); if (root.tab === "doctor") root.sh(doctorP, ["doctor"]) } } }
+                        onClicked: { root.tab = modelData[0]; if (root.tab === "logs") root.sh(logP, ["log"]); if (root.tab === "doctor") root.sh(doctorP, ["doctor"]); if (root.tab === "models") root.sh(modelsP, ["models"]) } } }
             }
             Card {
                 Layout.fillHeight: true; clip: true
@@ -359,6 +381,22 @@ ShellRoot {
                                     Text { font.family: "NullType"; font.pixelSize: 10; color: "#8a84a8"; text: (modelData.architecture || "") + "  ·  " + (modelData.size_label || "") } }
                                 GalaxyButton { text: "󰇚 Install"; enabled: !actP.running; onClicked: { root.message = "Installing " + modelData.name + "…"; root.sh(actP, ["install", modelData.id]) } } } } }
                 }
+                // models (catalog engines: pinned sources, verify re-hashes every file)
+                ListView { visible: root.major === "vc" && root.tab === "models"; anchors.fill: parent; anchors.margins: 10; spacing: 6; clip: true; model: root.models
+                    delegate: Rectangle { required property var modelData
+                        width: ListView.view.width; height: mcol.implicitHeight + 16; radius: 10; color: Galaxy.surface; border.color: modelData.installed ? Galaxy.edge : Galaxy.line
+                        RowLayout { anchors.fill: parent; anchors.margins: 8; spacing: 8
+                            ColumnLayout { id: mcol; Layout.fillWidth: true; spacing: 2
+                                RowLayout { spacing: 8
+                                    Text { font.family: Galaxy.font; font.pixelSize: 12; color: Galaxy.ink; text: modelData.name }
+                                    GalaxyPill { state_: modelData.installed ? "ok" : "idle"; text: modelData.installed ? "INSTALLED" : "AVAILABLE" } }
+                                Text { Layout.fillWidth: true; elide: Text.ElideRight; font.family: "NullType"; font.pixelSize: 10; color: Galaxy.muted; text: modelData.size_hint || "" }
+                                Text { Layout.fillWidth: true; elide: Text.ElideRight; font.family: "NullType"; font.pixelSize: 10
+                                    color: /NON-COMMERCIAL|NC/.test(String(modelData.weights_license)) ? Galaxy.warn : Galaxy.label; text: "weights: " + (modelData.weights_license || "?") } }
+                            GalaxyButton { implicitHeight: 28; text: "Verify"; visible: !!modelData.installed && modelData.name !== "xvc"; enabled: !actP.running
+                                hint: "Re-hash every file against its pinned SHA-256"; onClicked: { root.message = "Verifying " + modelData.name + "…"; root.sh(actP, ["verify", modelData.name]) } }
+                            GalaxyButton { implicitHeight: 28; text: modelData.installed ? "Repair" : "Install"; primary: !modelData.installed; enabled: !actP.running
+                                hint: (modelData.size_hint || "") + " · " + (modelData.weights_license || ""); onClicked: { root.message = "Installing " + modelData.name + "… (see Logs)"; root.sh(actP, ["install-model", modelData.name]) } } } } }
                 // doctor
                 ListView { visible: root.major === "vc" && root.tab === "doctor"; anchors.fill: parent; anchors.margins: 10; spacing: 5; clip: true; model: root.doctor
                     delegate: Rectangle { required property string modelData
@@ -381,19 +419,22 @@ ShellRoot {
             RowLayout { Layout.fillWidth: true; spacing: 8
                 GalaxyButton { text: "󰑐"; hint: "Refresh"; onClicked: { root.refresh(); root.sh(enginesP, ["vcengines"]); root.sh(presetsP, ["presets"]) } }
                 GalaxyButton { visible: root.major === "vc"; text: "󰕾 Setup mic"; hint: "Create the aivoice null sink / virtual source only"; enabled: !actP.running; onClicked: root.sh(actP, ["setup"]) }
-                GalaxyButton { visible: root.major === "vc"; text: "󰑓 Resample"; hint: "Regenerate the selected voice's reference sample (Piper TTS -> its RVC model)"; enabled: !!root.voice && !actP.running && !root.st.running; onClicked: { root.message = "Regenerating sample for " + root.voice + "…"; root.sh(actP, ["resynth", root.voice]) } }
+                GalaxyButton { visible: root.major === "vc"; text: "󰑓 Resample"; hint: "Regenerate the selected voice's reference sample (Piper TTS -> its RVC model)"; enabled: !!root.voice && !actP.running && !root.isLive; onClicked: { root.message = "Regenerating sample for " + root.voice + "…"; root.sh(actP, ["resynth", root.voice]) } }
                 GalaxyButton { visible: root.major === "vc"; text: "󰇚 MeanVC2"; hint: "Download MeanVC2 runtime + models (multi-GB, needs PyTorch)"; enabled: !actP.running; onClicked: { root.message = "Downloading MeanVC2…"; root.sh(actP, ["models-install"]) } }
-                GalaxyButton { visible: root.major !== "s2s" && root.st.running; text: root.live.bypass ? "󰕿 Bypassed" : "󰕾 Bypass"; selected: !!root.live.bypass; onClicked: root.sh(actP, ["bypass"]) }
+                GalaxyButton { visible: root.major !== "s2s" && root.isLive; text: root.live.bypass ? "󰕿 Bypassed" : "󰕾 Bypass"; selected: !!root.live.bypass; onClicked: root.sh(actP, ["bypass"]) }
                 Item { Layout.fillWidth: true }
-                GalaxyButton { visible: root.major === "vc" && !root.st.running; primary: true; text: "󰍬 Start"; enabled: !!root.voice && !actP.running && root.engRunnable(root.vcEngine)
+                GalaxyButton { visible: root.major === "vc" && !root.isLive; primary: true; text: "󰍬 Start"; enabled: !!root.voice && !actP.running && root.engRunnable(root.vcEngine)
                     onClicked: root.sh(actP, ["start", root.voice, root.mode, root.vcEngine, String(root.denoise)]) }
-                GalaxyButton { visible: root.major === "mod" && !root.st.running; primary: true; text: "󰍬 Start modulation"; enabled: !actP.running
+                GalaxyButton { visible: root.major === "mod" && !root.isLive; primary: true; text: "󰍬 Start modulation"; enabled: !actP.running
                     onClicked: root.sh(actP, ["modstart", root.preset, String(Math.round(root.strength))].concat(root.advArgs())) }
-                GalaxyButton { visible: root.major !== "s2s" && root.st.running; primary: true; text: "󰓛 Stop"; enabled: !actP.running; onClicked: root.sh(actP, ["stop"]) }
-                GalaxyButton { visible: root.major === "s2s" && !(root.s2s.engine); primary: true; text: "󰍬 Start S2S"; enabled: !actP.running && !root.st.running; hint: root.st.running ? "Stop the live VC / modulation session first (one virtual mic)" : ""
+                GalaxyButton { visible: root.major !== "s2s" && root.isLive; primary: true; text: "󰓛 Stop"; enabled: !actP.running
+                    hint: root.st.running ? "" : "Stops the running aivoice session (started outside the widget)"
+                    onClicked: root.sh(actP, [root.st.running ? "stop" : "vcstop"]) }
+                GalaxyButton { visible: root.major === "s2s" && !(root.s2s.engine); primary: true; text: "󰍬 Start S2S"; enabled: !actP.running && !root.isLive; hint: root.isLive ? "Stop the live VC / modulation session first (one virtual mic)" : ""
                     onClicked: root.sh(actP, ["s2sstart"]) }
                 GalaxyButton { visible: root.major === "s2s" && !!(root.s2s.engine); primary: true; text: "󰓛 Stop S2S"; enabled: !actP.running; onClicked: root.sh(actP, ["s2sstop"]) }
             }
+        }
         }
     }
 }

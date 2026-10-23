@@ -122,3 +122,41 @@ def test_widget_loads_and_binds_real_cli_output(tmp_path):
     assert any(ln.startswith("PROPS") for ln in lines)
     cmds = {json.loads(ln.split(" ", 1)[1])[0] for ln in lines if ln.startswith("STUBCMD")}
     assert {"vcengines", "vcstatus", "presets", "status", "s2sstatus", "repro"} <= cmds
+
+
+QS = shutil.which("qs") or shutil.which("quickshell")
+
+
+@pytest.mark.skipif(QS is None, reason="quickshell not installed")
+@pytest.mark.parametrize("major,tab", [("vc", "voices"), ("vc", "models"), ("mod", "voices"), ("s2s", "voices"), ("res", "voices")])
+def test_widget_renders_in_real_quickshell(tmp_path, major, tab):
+    """Offscreen render in the installed Quickshell (Galaxy singleton + components); fails on any QML warning."""
+    live = {"running": True, "engine": "tvtsyn", "selected_engine": "tvtsyn", "voice": "Test Voice", "mode": "voice_conversion",
+            "algorithmic_latency_ms": 180.0, "processing": {"engine_ms": {"p95": 12.0}}, "rtf": 0.15, "chunk_ms": 100,
+            "gpu": {"util_pct": 10}, "worker": {"vram_allocated_mib": 450}, "underruns": 1, "dropped_blocks": 0,
+            "sample_rate": 48000, "engine_sample_rate": 16000, "prebuffer_ms": 60, "end_to_end_estimate_ms": 250,
+            "fallbacks": [], "uptime_s": 10, "level_in": 0.3, "level_out": 0.5}
+    fake = tmp_path / "aivoice"
+    (tmp_path / "live.json").write_text(json.dumps(live))
+    fake.write_text("#!/usr/bin/env bash\ncase \"$1 $2\" in\n"
+                    f"  'vc status') cat {tmp_path / 'live.json'} ;;\n"
+                    "  'vc engines') echo '[{\"name\":\"tvtsyn\",\"state\":\"EXPERIMENTAL\",\"runnable\":true,\"detail\":\"ok\",\"caps\":{\"license\":\"CC BY-NC 4.0\",\"notes\":\"\"}}]' ;;\n"
+                    "  'models list') echo '[{\"name\":\"tvtsyn\",\"installed\":true,\"size_hint\":\"360 MB\",\"weights_license\":\"CC BY-NC 4.0: NON-COMMERCIAL\"}]' ;;\n"
+                    "  'voices list') echo '[{\"name\":\"Test Voice\"}]' ;;\n"
+                    "  'modulate preset') echo '[]' ;;\n"
+                    "  'experimental status') echo '{}' ;;\n"
+                    "  'reproduce panel') echo '[]' ;;\n"
+                    "  '--version ') echo 'aivoice, version 0.7.0' ;;\n"
+                    "  *) echo '{}' ;;\nesac\n")
+    fake.chmod(0o755)
+    shot = tmp_path / "shot.png"
+    home = tmp_path / "home"
+    home.mkdir()
+    # temporary HOME: run.sh then finds no pactl/parec (they live in ~/.local/share/aivoice/gcroots), so the
+    # widget's input-level probe never opens a real microphone during tests
+    env = {**os.environ, "HOME": str(home), "QT_QPA_PLATFORM": "offscreen", "AIVOICE_BIN": str(fake), "AIVOICE_UI_MAJOR": major, "AIVOICE_UI_TAB": tab,
+           "AIVOICE_UI_SCREENSHOT": str(shot), "AIVOICE_UI_SCREENSHOT_QUIT": "1"}
+    r = subprocess.run([QS, "-p", str(WIDGET)], env=env, capture_output=True, text=True, timeout=90)
+    bad = [line for line in (r.stdout + r.stderr).splitlines() if ("WARN" in line or "ERROR" in line) and "window masks" not in line]
+    assert not bad, "\n".join(bad)
+    assert shot.is_file() and shot.stat().st_size > 10_000

@@ -299,37 +299,60 @@ def meanvc2_files_present() -> bool:
         (v / f["path"]).is_file() and (v / f["path"]).stat().st_size == f["size"] for f in MEANVC2_FILES)
 
 
-def verify_model(name: str) -> dict[str, Any]:
-    """Re-hash installed files against pinned or recorded digests. A READY marker is not evidence."""
-    if name != "meanvc2":
-        raise KeyError(f"verify supports meanvc2 (got {name!r})")
-    from .model_fetch import check_format, sha256
+def _check_files(rows: list[tuple[Path, int | None, str | None, str, str | None]]) -> tuple[bool, list[dict[str, Any]]]:
+    """(path, size, sha256, trust, format) -> verified rows. Hashes every file; existence alone is not evidence."""
+    from .model_fetch import FetchError, check_format, sha256
 
-    rec = _load().get("meanvc2", {}).get("files", {})
-    rows, ok = [], True
-    for f in MEANVC2_FILES:
-        p = vendor_dir() / f["path"]
-        want = f["sha256"] or (rec.get(f["path"]) or {}).get("sha256")
-        row = {"path": f["path"], "trust": "hf-lfs-pinned" if f["sha256"] else "recorded"}
-        if not p.is_file():
+    out, ok = [], True
+    for path, size, want, trust, fmt in rows:
+        row: dict[str, Any] = {"path": str(path), "trust": trust}
+        if not path.is_file():
             row.update(ok=False, reason="missing")
-        elif p.stat().st_size != f["size"]:
-            row.update(ok=False, reason=f"size {p.stat().st_size} != {f['size']}")
+        elif size is not None and path.stat().st_size != size:
+            row.update(ok=False, reason=f"size {path.stat().st_size} != {size}")
         elif want is None:
             row.update(ok=False, reason="no digest recorded; reinstall")
         else:
-            got = sha256(p)
+            got = sha256(path)
             row.update(ok=got == want, sha256=got, reason=None if got == want else f"SHA-256 mismatch (expected {want})")
-            if row["ok"]:
-                row["format"] = check_format(p, f["format"])
-        ok &= row["ok"]
-        rows.append(row)
-    cfg = vendor_dir() / "preprocess/ckpts/wavlm_large_cfg.pt"
-    rows.append({"path": str(cfg.relative_to(vendor_dir())), "ok": cfg.is_file(), "trust": "derived"})
-    ok &= cfg.is_file()
-    head = subprocess.run(["git", "-C", str(vendor_dir()), "rev-parse", "HEAD"], capture_output=True, text=True, check=False).stdout.strip()
-    return {"name": name, "ok": ok and head == MEANVC2_COMMIT, "vendor_commit": head, "expected_commit": MEANVC2_COMMIT,
-            "files": rows}
+            if row["ok"] and fmt:
+                try:
+                    row["format"] = check_format(path, fmt)
+                except FetchError as e:
+                    row.update(ok=False, reason=str(e))
+        ok &= bool(row["ok"])
+        out.append(row)
+    return ok, out
+
+
+def verify_model(name: str) -> dict[str, Any]:
+    """Re-hash installed files against pinned or recorded digests. A READY marker is not evidence."""
+    rec = _load().get(name, {}).get("files", {})
+    if name == "meanvc2":
+        rows = [(vendor_dir() / f["path"], f["size"], f["sha256"] or (rec.get(f["path"]) or {}).get("sha256"),
+                 "hf-lfs-pinned" if f["sha256"] else "recorded", f["format"]) for f in MEANVC2_FILES]
+        ok, out = _check_files(rows)
+        cfg = vendor_dir() / "preprocess/ckpts/wavlm_large_cfg.pt"
+        out.append({"path": str(cfg), "ok": cfg.is_file(), "trust": "derived (s3prl wavlm_large.pt cfg)"})
+        ok &= cfg.is_file()
+        head = subprocess.run(["git", "-C", str(vendor_dir()), "rev-parse", "HEAD"], capture_output=True, text=True,
+                              check=False).stdout.strip()
+        return {"name": name, "ok": ok and head == MEANVC2_COMMIT, "vendor_commit": head, "expected_commit": MEANVC2_COMMIT,
+                "files": out}
+    if name == "tvtsyn":
+        ok, out = _check_files([(tvtsyn_dir() / "bundle" / f["path"], f["size"], f["sha256"], "hf-lfs-pinned", f.get("format"))
+                                for f in TVTSYN_FILES])
+        return {"name": name, "ok": ok, "files": out}
+    if name == "rvc-base":
+        base = rvc_python_dir() / "base_model"
+        ok, out = _check_files([(base / f["path"], f["size"], f["sha256"], "hf-lfs-pinned", f["format"]) for f in RVC_BASE_FILES])
+        return {"name": name, "ok": ok, "files": out}
+    if name == "rvc-testvoice":
+        f = models_dir() / "rvc-testvoice" / "rvc-pretrained-base.pth"
+        r = rec.get(f.name) or {}
+        ok, out = _check_files([(f, r.get("size"), r.get("sha256"), "recorded (derived from pinned f0G48k.pth)", "torch-zip")])
+        return {"name": name, "ok": ok, "files": out}
+    raise KeyError(f"verify supports meanvc2, tvtsyn, rvc-base, rvc-testvoice (got {name!r})")
 
 
 def is_ready(name: str = "meanvc2") -> bool:
