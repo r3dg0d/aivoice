@@ -70,8 +70,9 @@ class ParakeetBackend(ASRBackend):
             # Resolves through the HF cache; only reaches the network when not cached.
             m = ASRModel.from_pretrained(model_name=self.model_id, map_location=dev)
         m.eval()
-        if self.half and dev.startswith("cuda"):
-            m = m.half()
+        # fp32 weights + bf16 autocast (NeMo's recommendation). A full .half() cast gave runaway/garbage
+        # decodes on some inputs (one 19.9 s clip decoded to 4,545 characters) and was slower.
+        self._autocast = bool(self.half and dev.startswith("cuda"))
         self._m = m
         params = inspect.signature(m.transcribe).parameters
         self._transcribe_kw = {"batch_size": 1}
@@ -121,11 +122,21 @@ class ParakeetBackend(ASRBackend):
         import torch  # type: ignore
 
         t0 = time.perf_counter()
-        with torch.inference_mode():
-            out = self._m.transcribe([x], **self._transcribe_kw)
-        if isinstance(out, tuple):  # some NeMo versions return (best, all)
-            out = out[0]
-        hyp = out[0] if out else ""
+        hyp = self._decode_direct(x, torch) if not self.timestamps else None
+        if hyp is not None and not str(getattr(hyp, "text", hyp)).strip() and x.size > 16000 \
+                and float(np.sqrt(np.mean(x * x))) > 0.003:
+            # parakeet-tdt-0.6b-v3 on NeMo 3.0 decodes some windows to nothing (about 1 in 8 random 3-20 s speech
+            # windows here, identically on CPU and CUDA and with every greedy decoder). A 0.4 s later start
+            # recovers about half of them; keep whichever has text.
+            retry = self._decode_direct(x[6400:], torch)
+            if str(getattr(retry, "text", retry)).strip():
+                hyp = retry
+        if hyp is None:
+            with torch.inference_mode():
+                out = self._m.transcribe([x], **self._transcribe_kw)
+            if isinstance(out, tuple):  # some NeMo versions return (best, all)
+                out = out[0]
+            hyp = out[0] if out else ""
         text = getattr(hyp, "text", hyp) if not isinstance(hyp, str) else hyp
         words = None
         ts = getattr(hyp, "timestamp", None)
@@ -139,6 +150,36 @@ class ParakeetBackend(ASRBackend):
             latency_ms=(time.perf_counter() - t0) * 1000,
             audio_s=x.size / 16000,
         )
+
+
+    def _decode_direct(self, x: np.ndarray, torch):
+        """Encoder forward + RNNT/TDT greedy decoding on the tensor itself.
+
+        NeMo 3.0's high-level ``transcribe([array])`` returns an empty hypothesis for some in-memory inputs
+        (measured with parakeet-tdt-0.6b-v3: a 12 s and a 19.9 s clip decoded to "" while the same audio
+        through forward + decoding gave the full transcript), which made chunked streaming finals empty.
+        Going direct also skips the per-call dataloader. Returns None when the model lacks these APIs.
+        """
+        m = self._m
+        dec = getattr(m, "decoding", None)
+        if dec is None or not hasattr(dec, "rnnt_decoder_predictions_tensor"):
+            return None
+        dev = next(m.parameters()).device
+        sig = torch.from_numpy(np.ascontiguousarray(x, dtype=np.float32))[None].to(dev)
+        ln = torch.tensor([sig.shape[1]], device=dev)
+        ctx = torch.autocast("cuda", dtype=torch.bfloat16) if getattr(self, "_autocast", False) else _nullcontext()
+        with torch.inference_mode(), ctx:
+            enc, enc_len = m.forward(input_signal=sig, input_signal_length=ln)
+            hyps = dec.rnnt_decoder_predictions_tensor(encoder_output=enc, encoded_lengths=enc_len, return_hypotheses=False)
+        if isinstance(hyps, tuple):
+            hyps = hyps[0]
+        return hyps[0] if hyps else ""
+
+
+def _nullcontext():
+    import contextlib
+
+    return contextlib.nullcontext()
 
 
 def find_nemo_file(snapshot: str | Path) -> str | None:

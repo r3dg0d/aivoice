@@ -338,3 +338,38 @@ def test_whisper_backend_is_offline_unless_allowed():
     assert be.allow_download is False and len(REVISION) == 40
     caps = be.get_capabilities()
     assert caps.native_streaming is False and "whisper-small.en" in caps.notes
+
+
+def test_chunked_final_covers_whole_utterance_and_never_empties():
+    import numpy as np
+
+    from aivoice.asr.base import ASRBackend, ASRCapabilities, TranscriptUpdate
+    from aivoice.asr.chunked import ChunkedStreamingAdapter
+
+    class Inner(ASRBackend):
+        name = "inner"
+        seen: list = []
+        fail_final = False
+
+        def load_model(self): ...
+        def unload_model(self): ...
+        def get_capabilities(self):
+            return ASRCapabilities("inner", False, False, False, False, ["en"], ["cpu"])
+
+        def transcribe(self, audio, sample_rate=16000):
+            self.seen.append(audio.size)
+            if self.fail_final and audio.size > 16000 * 21:
+                return TranscriptUpdate("", True)
+            return TranscriptUpdate(f"{audio.size}", True)
+
+    inner = Inner()
+    a = ChunkedStreamingAdapter(inner, interval_ms=480, max_window_s=20.0)
+    x = np.full(16000 * 25, 0.1, np.float32)
+    for i in range(0, x.size, 1600):
+        a.transcribe_stream(x[i:i + 1600])
+    assert max(inner.seen) <= 16000 * 20  # partials stay bounded
+    assert a.finalize_utterance().text == str(16000 * 25)  # the final decodes all 25 s
+    inner.fail_final = True
+    for i in range(0, x.size, 1600):
+        a.transcribe_stream(x[i:i + 1600])
+    assert a.finalize_utterance().text != ""  # an empty final falls back to the last partial

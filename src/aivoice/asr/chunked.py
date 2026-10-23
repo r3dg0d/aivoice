@@ -27,12 +27,14 @@ class ChunkedStreamingAdapter(ASRBackend):
         interval_ms: int = 480,
         max_window_s: float = 20.0,
         min_audio_ms: int = 320,
+        final_window_s: float = 60.0,
     ) -> None:
         self.inner = inner
         self.name = f"{inner.name}+chunked"
         self.interval_ms = interval_ms
         self.max_window_s = max_window_s
         self.min_audio_ms = min_audio_ms
+        self.final_window_s = final_window_s
         self._buf: list[np.ndarray] = []
         self._samples = 0
         self._since = 0
@@ -72,9 +74,9 @@ class ChunkedStreamingAdapter(ASRBackend):
             notes=f"chunked re-decoding every {self.interval_ms} ms (not native streaming). {c.notes}".strip(),
         )
 
-    def _audio(self) -> np.ndarray:
+    def _audio(self, window_s: float | None = None) -> np.ndarray:
         a = np.concatenate(self._buf) if self._buf else np.zeros(0, np.float32)
-        max_n = int(self.max_window_s * self._sr)
+        max_n = int((window_s or self.max_window_s) * self._sr)
         return a[-max_n:] if a.size > max_n else a
 
     def transcribe_stream(self, chunk: np.ndarray, sample_rate: int = 16000) -> list[TranscriptUpdate]:
@@ -109,10 +111,13 @@ class ChunkedStreamingAdapter(ASRBackend):
 
     def finalize_utterance(self) -> TranscriptUpdate:
         t0 = time.perf_counter()
-        audio = self._audio()
+        # One decode of the whole utterance (partials are bounded to max_window_s for speed; the final used to be
+        # too, which dropped everything older than 20 s from long utterances).
+        audio = self._audio(self.final_window_s)
         res = self.inner.transcribe(audio, self._sr) if audio.size else TranscriptUpdate("", True)
+        text = res.text if res.text.strip() else self._last_text  # never finalize emptier than the last partial
         out = TranscriptUpdate(
-            text=res.text,
+            text=text,
             is_final=True,
             revision=self._revision + 1,
             backend=self.name,

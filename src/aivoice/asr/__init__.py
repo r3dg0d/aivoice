@@ -25,8 +25,12 @@ def available_backends() -> dict[str, str | None]:
 def backend_config(name: str, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     """The settings that change a backend's speed/accuracy (part of the benchmark cache key)."""
     cfg = cfg or {}
+    # Must describe what create_backend() actually builds, or measurements recorded by the benchmark are never
+    # found again (Parakeet's device comes from asr.parakeet_device, not the CPU-only asr.device).
     if name == "parakeet":
-        return {"device": cfg.get("device", "cuda"), "half": True}
+        return {"device": cfg.get("parakeet_device") or ("cuda" if _has_gpu() else "cpu"), "half": True}
+    if name == "whisper-small-en":
+        return {"language": "en", "device": "cuda" if _has_gpu() else "cpu"}
     return {"language": cfg.get("language", "en"), "device": "cpu"}
 
 

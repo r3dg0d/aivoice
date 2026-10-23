@@ -418,7 +418,7 @@ def exp_asr_list():
     avail = available_backends()
     ms = ASRSelector().measurements({k: backend_config(k, st.get("asr")) for k in avail})
     click.echo(f"{'BACKEND':<18} {'STREAMING':<20} {'RUNTIME':<14} MEASURED (this machine)")
-    streaming = {"parakeet": "chunked re-decode"}
+    streaming = {"parakeet": "chunked re-decode", "whisper-small-en": "chunked re-decode"}
     for k, why in avail.items():
         m = ms.get(k)
         meas = f"final p50 {m.final_p50_ms:.0f} ms, WER {m.wer:.1%}" if m and m.wer is not None else (
