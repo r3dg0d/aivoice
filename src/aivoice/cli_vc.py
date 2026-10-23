@@ -105,9 +105,11 @@ def run_live_unified(*, engine, cfg, target=None, input_file: Path | None = None
     risk = feedback_risk(cfg.input_device)
     if risk:
         raise click.ClickException(risk)
+    created_mic = False
     if output == "virtual":
         info = ensure_virtual_mic("aivoice")
         cfg.output_sink = info.sink or "aivoice_sink"
+        created_mic = not info.reused and bool(info.module_ids)
         click.echo(f"Output    {info.hint}")
     elif output == "default":
         cfg.output_sink = None
@@ -164,11 +166,30 @@ def run_live_unified(*, engine, cfg, target=None, input_file: Path | None = None
     finally:
         runner.stop()
         pid_path().unlink(missing_ok=True)
-        # the virtual mic is left in place for the next session, so apps never need re-pointing
+        # A virtual mic this session created goes away with it (no orphan device). One that already existed
+        # (`aivoice virtualmic --setup-only`, a NixOS/PipeWire config, another session) is reused and kept,
+        # so apps pointed at it never need re-pointing. AIVOICE_KEEP_VIRTUAL_MIC=1 / virtualmic.persistent keep it.
+        if created_mic and not _keep_virtual_mic():
+            from .virtualmic import cleanup_virtual_mic
+
+            removed = cleanup_virtual_mic("aivoice")
+            if removed and not quiet:
+                click.echo(f"\nremoved the virtual mic this session created (modules {removed})")
         s = pipe.snapshot()
         click.echo(f"\nsession: {s['audio_s']} s audio, engine {s['engine']}, rtf {s['rtf']}, fallbacks "
                    f"{len(s['fallbacks'])}, underruns {runner.player.underruns}, dropped {getattr(runner.capture, 'dropped', 0)}")
     return 0
+
+
+def _keep_virtual_mic() -> bool:
+    if os.environ.get("AIVOICE_KEEP_VIRTUAL_MIC", "").strip().lower() in ("1", "true", "yes"):
+        return True
+    try:
+        from . import settings
+
+        return bool(settings.get("virtualmic.persistent"))
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _pid_alive() -> int | None:

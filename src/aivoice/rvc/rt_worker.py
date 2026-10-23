@@ -148,6 +148,31 @@ class RvcRealtime:
         self.reset()
 
 
+def _import_sounddevice():
+    """sounddevice, finding libportaudio on LD_LIBRARY_PATH when ctypes cannot (NixOS). Mirrors
+    aivoice/audio/portaudio.py: this file must not import aivoice."""
+    import ctypes.util
+
+    try:
+        import sounddevice
+
+        return sounddevice
+    except OSError:
+        lib = os.environ.get("AIVOICE_PORTAUDIO") or next(
+            (os.path.join(d, n) for d in os.environ.get("LD_LIBRARY_PATH", "").split(os.pathsep) if d
+             for n in ("libportaudio.so.2", "libportaudio.so") if os.path.isfile(os.path.join(d, n))), None)
+        if lib is None:
+            raise
+        orig = ctypes.util.find_library
+        ctypes.util.find_library = lambda name: lib if name == "portaudio" else orig(name)
+        try:
+            import sounddevice
+
+            return sounddevice
+        finally:
+            ctypes.util.find_library = orig
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True)
@@ -194,7 +219,7 @@ def main() -> int:
         print(f"wrote {a.output_wav}  chunks={rt.stats['n']} over={rt.stats['over']}", flush=True)
         return 0
 
-    import sounddevice as sd
+    sd = _import_sounddevice()
 
     print("[Stream] Running (sounddevice, 48 kHz mono). Ctrl+C to stop.", flush=True)
     xr = 0

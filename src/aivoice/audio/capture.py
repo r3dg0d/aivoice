@@ -8,6 +8,7 @@ other threads and can never stall capture.
 
 from __future__ import annotations
 
+import os
 import queue
 import threading
 import time
@@ -73,7 +74,9 @@ class MicCapture:
 
     def start(self) -> None:
         try:
-            import sounddevice as sd  # type: ignore
+            from .portaudio import import_sounddevice
+
+            sd = import_sounddevice()
         except (ImportError, OSError) as e:
             raise CaptureError(f"sounddevice/PortAudio unavailable: {e}. pip install 'aivoice[realtime]'") from e
 
@@ -208,7 +211,7 @@ class ParecCapture:
             raise CaptureError("parec not found (install pulseaudio-utils / pipewire-pulse)")
         argv = [
             exe, "--raw", "--format=float32le", f"--rate={self.sample_rate}", "--channels=1",
-            "--latency-msec=20", "--client-name=aivoice", "--stream-name=aivoice-input",
+            f"--latency-msec={int(os.environ.get('AIVOICE_PAREC_LATENCY_MS', '10'))}", "--client-name=aivoice", "--stream-name=aivoice-input",
         ]
         if self.source:
             argv.append(f"--device={self.source}")
@@ -242,7 +245,9 @@ class ParecCapture:
 def make_capture(*, kind: str = "auto", device=None, sample_rate: int = 16000, block_ms: int = 20):
     import shutil
 
-    if kind == "parec" or (kind == "auto" and isinstance(device, str) and shutil.which("parec") and not device.isdigit()):
+    # parec whenever PipeWire/Pulse tools exist and no PortAudio index was asked for (device None = default
+    # source): it needs no PortAudio, which NixOS python wheels cannot find on their own.
+    if kind == "parec" or (kind == "auto" and shutil.which("parec") and not (isinstance(device, int) or (isinstance(device, str) and device.isdigit()))):
         return ParecCapture(source=device, sample_rate=sample_rate, block_ms=block_ms)
     return MicCapture(device=int(device) if isinstance(device, str) and device.isdigit() else device,
                       sample_rate=sample_rate, block_ms=block_ms)

@@ -14,6 +14,7 @@ mic sink), :class:`ClockDriver` for tests and benchmarks.
 from __future__ import annotations
 
 import collections
+import os
 import threading
 import time
 from dataclasses import dataclass, field
@@ -278,7 +279,9 @@ class SoundDeviceDriver:
         self._stream = None
 
     def start(self) -> None:
-        import sounddevice as sd  # type: ignore
+        from .portaudio import import_sounddevice
+
+        sd = import_sounddevice()
 
         def cb(outdata, frames, t, status):
             if status and status.output_underflow:
@@ -313,7 +316,7 @@ class PacatDriver:
     blocks of audio (no hidden 64 KiB pipe-buffer latency).
     """
 
-    def __init__(self, player: Player, *, sink: str | None = None, block_ms: int = 10, latency_ms: int = 30) -> None:
+    def __init__(self, player: Player, *, sink: str | None = None, block_ms: int = 10, latency_ms: int = 15) -> None:
         self.player = player
         self.sink = sink
         self.block = int(player.sample_rate * block_ms / 1000)
@@ -336,7 +339,7 @@ class PacatDriver:
             "--format=float32le",
             f"--rate={self.player.sample_rate}",
             "--channels=1",
-            f"--latency-msec={self.latency_ms}",
+            f"--latency-msec={int(os.environ.get('AIVOICE_PACAT_LATENCY_MS', self.latency_ms))}",
             "--client-name=aivoice",
             "--stream-name=aivoice-output",
         ]

@@ -542,3 +542,25 @@ def test_live_runner_sizes_buffer_to_engine_bursts():
     r.wait(3.5)
     r.stop()
     assert r.player.underruns <= 1  # at most one startup transient before audio
+
+
+def test_default_capture_uses_parec_not_portaudio(monkeypatch):
+    """No --input given: capture the default source through parec (NixOS wheels cannot find PortAudio)."""
+    import shutil as _sh
+
+    from aivoice.audio import capture
+
+    monkeypatch.setattr(_sh, "which", lambda n: "/usr/bin/parec" if n == "parec" else None)
+    assert isinstance(capture.make_capture(device=None, sample_rate=48000, block_ms=10), capture.ParecCapture)
+    assert isinstance(capture.make_capture(device="alsa_input.x", sample_rate=48000, block_ms=10), capture.ParecCapture)
+    assert isinstance(capture.make_capture(device="3", sample_rate=48000, block_ms=10), capture.MicCapture)
+
+
+def test_keep_virtual_mic_switch(monkeypatch):
+    from aivoice.cli_vc import _keep_virtual_mic
+
+    monkeypatch.delenv("AIVOICE_KEEP_VIRTUAL_MIC", raising=False)
+    monkeypatch.setattr("aivoice.settings.get", lambda key, *a, **k: None)
+    assert _keep_virtual_mic() is False
+    monkeypatch.setenv("AIVOICE_KEEP_VIRTUAL_MIC", "1")
+    assert _keep_virtual_mic() is True

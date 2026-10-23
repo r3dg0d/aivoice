@@ -60,8 +60,9 @@ def write_wav(path: Path, pcm: np.ndarray, sample_rate: int) -> None:
 
 def have_sounddevice() -> bool:
     try:
-        import sounddevice  # type: ignore  # noqa: F401
+        from .audio.portaudio import import_sounddevice
 
+        import_sounddevice()
         return True
-    except ImportError:
+    except (ImportError, OSError):
         return False
