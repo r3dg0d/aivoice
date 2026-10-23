@@ -235,7 +235,7 @@ class WorkerVCEngine(BaseEngine):
         if self.needs_target_at_load and not self._target_ready():
             return
         st = self.status()
-        if not st.ready:
+        if not st.state.runnable:  # READY, INSTALLED and EXPERIMENTAL can start (was: EXPERIMENTAL never could)
             raise VCUnavailable(f"{self.name}: {st.state.value}: {st.detail}")
         self._spawn()
 
@@ -601,6 +601,53 @@ class VossaEngine(WorkerVCEngine):
                 "trust_pickle": bool(_cfg("vossa", "trust_pickle", False))}
 
 
+class TVTSynEngine(WorkerVCEngine):
+    """Official TVTSyn (PSI-TAMU, ICLR 2026) streaming session, resident in its own venv."""
+
+    name = "tvtsyn"
+    handler = "tvtsyn"
+    modules = ("torch", "tvtsyn_inference", "speechbrain", "safetensors")
+
+    def __init__(self, **kw: Any) -> None:
+        if "python" not in kw:
+            kw["python"] = os.environ.get("AIVOICE_TVTSYN_PYTHON") or str(Path.home() / ".local/share/aivoice/tvtsyn-venv/bin/python")
+        super().__init__(**kw)
+
+    def capabilities(self) -> VCCapabilities:
+        return VCCapabilities(
+            name="tvtsyn", display_name="TVTSyn (official, non-commercial)", task=TASK_VC, zero_shot=True,
+            requires_reference=True, supports_cross_lingual=None, sample_rate=16000, chunk_ms=100.0, lookahead_ms=80.0,
+            algorithmic_latency_ms=180.0, estimated_vram_mib=750, devices=("cuda", "cpu"),
+            license="CC BY-NC 4.0 (code and weights): NON-COMMERCIAL use only",
+            code="https://github.com/PSI-TAMU/TVTSyn @ 9aa67c0 (tvtsyn_inference StreamingSession)",
+            weights="warisqr007/TVTSyn @ e370632 (model.safetensors) + SpeechBrain x-vector/ECAPA (pinned)",
+            paper="arXiv:2602.09389 (ICLR 2026)", evidence="official-implementation",
+            install="aivoice models install tvtsyn --yes (needs AIVOICE_TVTSYN_PYTHON venv, torch<2.9)",
+            notes="Content-synchronous time-varying timbre with a global timbre memory. Measured here (RTX 4090): "
+                  "~10 ms per 100 ms step, 750 MiB VRAM, GE2E target similarity 0.957 vs 0.872 for MeanVC2 on the "
+                  "same source/target. Non-commercial license: never chosen by auto.")
+
+    def _ready_state(self) -> EngineState:
+        return EngineState.EXPERIMENTAL  # runnable; NC license keeps it out of `auto`
+
+    def _files(self) -> dict[str, Path | None]:
+        from ..models import tvtsyn_dir
+
+        b = tvtsyn_dir() / "bundle"
+        return {"TVTSyn config.json": b / "config.json", "TVTSyn model.safetensors": b / "model.safetensors",
+                "SpeechBrain encoders": tvtsyn_dir() / "speaker"}
+
+    def _load_request(self) -> dict[str, Any]:
+        from ..models import tvtsyn_dir
+
+        return {"device": self.device, "bundle": str(tvtsyn_dir() / "bundle"), "speaker_cache": str(tvtsyn_dir() / "speaker")}
+
+    def _prepare_request(self, target: VoiceTarget | None) -> dict[str, Any]:
+        return {"reference": str(target.reference) if target and target.reference else None}
+
+    chunk_timeout_s = 5.0
+
+
 class ReproVCEngine(WorkerVCEngine):
     """A paper reproduction trained with `aivoice reproduce`; startable only with a trained checkpoint."""
 
@@ -644,8 +691,9 @@ class ReproVCEngine(WorkerVCEngine):
         caps = self.capabilities()
         ck = registry.checkpoint_for(self.name)
         if ck is None:
-            return EngineStatusVC(self.name, EngineState.MISSING_WEIGHTS, caps,
-                                  "no trained checkpoint (none exist publicly; train one with `aivoice reproduce`)")
+            hint = ("no aivoice-trained checkpoint; the OFFICIAL TVTSyn weights run as engine `tvtsyn`"
+                    if self.name.startswith("tvtsyn") else "no trained checkpoint (none exist publicly; train one with `aivoice reproduce`)")
+            return EngineStatusVC(self.name, EngineState.MISSING_WEIGHTS, caps, hint)
         try:
             ok, why = is_usable_for_inference(read_meta(ck))
         except Exception as e:  # noqa: BLE001
@@ -696,7 +744,7 @@ def catalog_only() -> list[CatalogOnlyEngine]:
 ENGINES = {
     "dsp": DspEngine, "passthrough": PassthroughEngine, "xvc": XVCEngine, "meanvc2": MeanVC2StreamEngine,
     "rvc": RVCStreamEngine, "stylestream": StyleStreamEngine, "streamvoiceanon": StreamVoiceAnonEngine,
-    "vossa": VossaEngine,
+    "vossa": VossaEngine, "tvtsyn": TVTSynEngine,
 }
 
 
@@ -741,5 +789,6 @@ def all_vc_status() -> list[EngineStatusVC]:
 
 
 __all__ = ["ENGINES", "PINS", "CatalogOnlyEngine", "ReproVCEngine", "VossaEngine", "repro_engines", "DspEngine", "EchoWorkerEngine", "MeanVC2StreamEngine", "PassthroughEngine",
-           "RVCStreamEngine", "StreamVoiceAnonEngine", "StyleStreamEngine", "WorkerVCEngine", "XVCEngine", "all_vc_status",
+           "RVCStreamEngine", "StreamVoiceAnonEngine", "StyleStreamEngine", "TVTSynEngine", "WorkerVCEngine", "XVCEngine",
+           "all_vc_status",
            "catalog_only", "get_vc_engine", "vendor"]

@@ -574,3 +574,23 @@ def test_prebuffer_never_adapts_below_calibration():
     r.calibrated_ms = 55.0
     r._set_prebuffer(10.0)
     assert r.prebuffer_ms == 55.0
+
+
+def test_engine_choices_cover_registry():
+    from aivoice.cli_vc import VC_ENGINE_CHOICES
+    from aivoice.vc.engines import ENGINES
+
+    assert set(ENGINES) <= set(VC_ENGINE_CHOICES)
+
+
+def test_experimental_engines_can_load(monkeypatch):
+    """EXPERIMENTAL is runnable (state enum); load() used to refuse anything but READY/INSTALLED."""
+    from aivoice.vc.base import EngineState, EngineStatusVC
+    from aivoice.vc.engines import TVTSynEngine
+
+    eng = TVTSynEngine(python=sys.executable)
+    monkeypatch.setattr(eng, "status", lambda: EngineStatusVC("tvtsyn", EngineState.EXPERIMENTAL, eng.capabilities()))
+    spawned = []
+    monkeypatch.setattr(eng, "_spawn", lambda: spawned.append(1))
+    eng.load()
+    assert spawned == [1]

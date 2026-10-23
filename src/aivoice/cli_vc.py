@@ -17,7 +17,7 @@ from typing import Any
 
 import click
 
-VC_ENGINE_CHOICES = ["auto", "xvc", "rvc", "meanvc2", "dsp", "passthrough", "stylestream", "streamvoiceanon"]
+VC_ENGINE_CHOICES = ["auto", "xvc", "rvc", "meanvc2", "tvtsyn", "dsp", "passthrough", "stylestream", "streamvoiceanon", "vossa"]
 QUALITIES = ["lowest-latency", "balanced", "best-quality"]
 
 

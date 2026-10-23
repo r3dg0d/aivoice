@@ -304,7 +304,7 @@ def file_cmd(input_wav, reference, profile, voice, output, mode, device, backend
 @click.option("--consent-ack", is_flag=True)
 @click.option("--setup-only", is_flag=True, help="Only create null sink / remap source")
 @click.option("--engine", "rt_engine",
-              type=click.Choice(["rvc", "meanvc2", "auto", "xvc", "dsp", "stylestream", "streamvoiceanon"]), default=None,
+              type=click.Choice(["rvc", "meanvc2", "tvtsyn", "auto", "xvc", "dsp", "stylestream", "streamvoiceanon", "vossa"]), default=None,
               help="Realtime engine (default: the voice's saved choice; RVC v2 when it has a .pth). Every engine runs "
                    "on aivoice's shared pipeline (fallback, adaptive buffer, live status) unless --legacy-runtime")
 @click.option("--unified", is_flag=True, hidden=True, help="Kept for compatibility: the shared pipeline is the default")

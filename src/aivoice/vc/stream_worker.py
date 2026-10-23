@@ -431,6 +431,59 @@ class RVCHandler:
         return np.zeros(0, np.float32)
 
 
+class TVTSynHandler:
+    """Official TVTSyn (tvtsyn_inference): resident model, one StreamingSession per stream, 16 kHz in/out."""
+
+    sample_rate = 16000
+
+    def load(self, req):
+        import torch
+        from tvtsyn_inference import TVTSyn
+
+        dev = "cuda" if req.get("device", "cuda") == "cuda" and torch.cuda.is_available() else "cpu"
+        # local bundle (pinned, SHA-256 verified at install); no network at run time
+        self.model = TVTSyn.from_pretrained(req["bundle"], backend="pytorch", device=dev, cache_dir=req.get("speaker_cache"),
+                                            local_files_only=True)
+        self.speaker = None
+        self.session = None
+        return {"sample_rate": 16000, "chunk_samples": int(self.model.runtime.chunk_samples),
+                "lookahead_frames": int(self.model.runtime.lookahead_frames), **cuda_mem()}
+
+    def prepare(self, req):
+        ref = req.get("reference")
+        if not ref:
+            raise ValueError("TVTSyn needs a target reference wav")
+        cache = ref + ".tvtsyn-spk.npy"
+        try:
+            if os.path.getmtime(cache) >= os.path.getmtime(ref):
+                self.speaker = np.load(cache)
+                return {"speaker": "cached"}
+        except OSError:
+            pass
+        self.speaker = self.model.encode_speaker(ref)
+        try:
+            np.save(cache, self.speaker)
+        except OSError:
+            pass
+        return {"speaker": "encoded"}
+
+    def start(self, req):
+        if self.speaker is None:
+            raise ValueError("prepare() a reference before start()")
+        if self.session is not None:
+            self.session.close()
+        self.session = self.model.stream(self.speaker, sample_rate=16000)
+        return {}
+
+    def chunk(self, x):
+        return self.session.push(np.asarray(x, np.float32))
+
+    def flush(self):
+        y = self.session.flush()
+        self.session = self.model.stream(self.speaker, sample_rate=16000)
+        return y
+
+
 class StyleStreamHandler:
     """StyleStream (Berkeley-Speech-Group/StyleStream @ 38dd18c) - inference/streaming.py processing loop."""
 
@@ -617,7 +670,7 @@ class ReproHandler:
         return np.zeros(0, np.float32)
 
 
-HANDLERS = {"echo": EchoHandler, "xvc": XVCHandler, "meanvc2": MeanVC2Handler, "rvc": RVCHandler,
+HANDLERS = {"echo": EchoHandler, "xvc": XVCHandler, "meanvc2": MeanVC2Handler, "rvc": RVCHandler, "tvtsyn": TVTSynHandler,
             "stylestream": StyleStreamHandler, "streamvoiceanon": StreamVoiceAnonHandler, "vossa": VossaHandler,
             "repro": ReproHandler}
 

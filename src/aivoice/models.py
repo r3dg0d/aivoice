@@ -187,6 +187,57 @@ def _install_rvc_testvoice(progress=None) -> str:
             "It is RVC's generic pretrained generator, for engine tests only.")
 
 
+TVTSYN_HF = "warisqr007/TVTSyn"
+TVTSYN_REVISION = "e37063244a413f834fe976c1ba356d2ef37ece6c"
+TVTSYN_REPO, TVTSYN_COMMIT = "https://github.com/PSI-TAMU/TVTSyn", "9aa67c0272620caaf43170fe98ec48438e1624e0"
+_TVT = f"https://huggingface.co/{TVTSYN_HF}/resolve/{TVTSYN_REVISION}"
+TVTSYN_FILES = [
+    {"path": "config.json", "url": f"{_TVT}/config.json", "size": 47577,
+     "sha256": "de7b6e3ddfe4cf0b6f6604c636cacd634a4d31b5a3d99777499cafb7be6aaa03"},
+    {"path": "model.safetensors", "url": f"{_TVT}/model.safetensors", "size": 359528880,
+     "sha256": "0ae428fc384bbb0f10e97bef403813fb3e51ec4ea82307a25ee77820355d0f61", "format": "safetensors"},
+]
+CATALOG["tvtsyn"] = {
+    "name": "tvtsyn", "backend": "tvtsyn", "source": f"HF {TVTSYN_HF} @ {TVTSYN_REVISION[:7]} + {TVTSYN_REPO} @ {TVTSYN_COMMIT[:7]}",
+    "paper": "arXiv:2602.09389 (ICLR 2026)", "code_license_claimed": "CC BY-NC 4.0 (LICENSE in repo)", "code_license_gap": "none",
+    "weights_license": "CC BY-NC 4.0: NON-COMMERCIAL use only", "size_hint": "360 MB + SpeechBrain x-vector/ECAPA (~100 MB)",
+    "hf_revision": TVTSYN_REVISION, "checksum": "HF LFS SHA-256 pinned", "install": "pinned files + own Python venv (torch<2.9)",
+    "files": [f["path"] for f in TVTSYN_FILES],
+    "notes": "Official TVTSyn streaming VC (content-synchronous time-varying timbre). 100 ms steps with 80 ms lookahead, "
+             "16 kHz. Runs in its own venv (AIVOICE_TVTSYN_PYTHON, default ~/.local/share/aivoice/tvtsyn-venv): "
+             "pip install -e '<TVTSyn checkout>[pytorch,speaker]'.",
+}
+
+
+def tvtsyn_dir() -> Path:
+    return models_dir() / "tvtsyn"
+
+
+def _install_tvtsyn(progress=None) -> str:
+    """Pinned TVTSyn bundle into models/tvtsyn/bundle, then the pinned SpeechBrain encoders via the engine venv."""
+    from .model_fetch import check_format, fetch
+
+    bundle = tvtsyn_dir() / "bundle"
+    msgs = []
+    for f in TVTSYN_FILES:
+        dest = fetch(f, bundle / f["path"], progress)
+        msgs.append(f"{f['path']}: " + (check_format(dest, f["format"]) if f.get("format") else "sha256 ok"))
+    py = os.environ.get("AIVOICE_TVTSYN_PYTHON") or str(Path.home() / ".local/share/aivoice/tvtsyn-venv/bin/python")
+    if not Path(py).exists():
+        raise RuntimeError(f"TVTSyn runtime missing: {py}. Create a Python 3.10-3.12 venv with torch<2.9 and "
+                           f"pip install -e '<{TVTSYN_REPO} checkout @ {TVTSYN_COMMIT[:7]}>[pytorch,speaker]'")
+    code = ("import sys,json;from tvtsyn_inference.speaker import SpeakerEncoder;"
+            "c=json.load(open(sys.argv[1]));SpeakerEncoder(device='cpu',cache_dir=sys.argv[2],models=c['speaker_models']);print('ok')")
+    r = subprocess.run([py, "-c", code, str(bundle / "config.json"), str(tvtsyn_dir() / "speaker")],
+                       capture_output=True, text=True, timeout=900, check=False)
+    if r.returncode != 0:
+        raise RuntimeError(f"SpeechBrain speaker encoders failed to download/load: {(r.stderr or r.stdout)[-800:]}")
+    msgs.append("SpeechBrain x-vector + ECAPA encoders (revisions pinned in config.json) cached")
+    _save("tvtsyn", {"files": {f["path"]: {"sha256": f["sha256"], "size": f["size"], "url": f["url"]} for f in TVTSYN_FILES},
+                     "hf_revision": TVTSYN_REVISION, "code_commit": TVTSYN_COMMIT, "dir": str(tvtsyn_dir())})
+    return "TVTSyn installed and verified (CC BY-NC 4.0, non-commercial):\n" + "\n".join(msgs)
+
+
 @dataclass
 class ModelInfo:
     name: str
@@ -225,6 +276,8 @@ def list_models() -> list[ModelInfo]:
         path = models_dir() / name
         if name == "meanvc2":
             ready = meanvc2_files_present()
+        elif name == "tvtsyn":
+            ready = all((tvtsyn_dir() / "bundle" / f["path"]).is_file() for f in TVTSYN_FILES)
         elif name in ("rvc-base", "rvc-testvoice"):
             ready = all(Path(f.get("dest") or path / k).is_file() for k, f in (installed.get(name, {}).get("files") or {"_": {"dest": "/nonexistent"}}).items())
         else:
@@ -350,11 +403,13 @@ def _install_xvc(yes: bool) -> str:
 def install_model(name: str, *, yes: bool = False, progress=None) -> str:
     if name == "xvc":
         return _install_xvc(yes)
-    if name in ("rvc-base", "rvc-testvoice"):
+    if name in ("rvc-base", "rvc-testvoice", "tvtsyn"):
         if not yes:
             m = CATALOG[name]
             raise RuntimeError(f"Refusing to download '{name}' without --yes.\n  weights: {m['weights_license']}\n"
                                f"  size: {m['size_hint']}\n  source: {m['source']}\nRe-run: aivoice models install {name} --yes")
+        if name == "tvtsyn":
+            return _install_tvtsyn(progress)
         return _install_rvc_base(progress) if name == "rvc-base" else _install_rvc_testvoice(progress)
     if name not in CATALOG:
         raise KeyError(f"unknown model {name!r}; known: {', '.join(sorted(CATALOG))}")
