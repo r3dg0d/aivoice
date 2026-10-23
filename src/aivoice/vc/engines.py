@@ -469,7 +469,8 @@ class RVCStreamEngine(WorkerVCEngine):
                 "index": str(t.index_file) if t.index_file else "", "pitch": self.options.pitch_semitones or rt.get("pitch", 0.0),
                 "index_rate": self.options.index_rate if self.options.index_rate is not None else rt.get("index_rate", 0.5),
                 "protect": self.options.protect if self.options.protect is not None else rt.get("protect", 0.33),
-                "threshold": rt.get("threshold", -50.0), "block": b, "extra": e, "crossfade": x, "lookahead": la}
+                "threshold": rt.get("threshold", -50.0), "block": b, "extra": e, "crossfade": x, "lookahead": la,
+                "version": rt.get("version") or "auto"}
 
     def prepare_reference(self, target: VoiceTarget | None) -> None:
         BaseEngine.prepare_reference(self, target)

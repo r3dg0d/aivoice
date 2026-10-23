@@ -358,6 +358,8 @@ class LivePipeline:
             "level_in": round(min(1.0, self.stats.level_in * 6), 3), "level_out": round(min(1.0, self.stats.level_out * 6), 3),
             "fallbacks": self.stats.fallbacks[-5:], "errors": list(self.stats.errors)[-5:], "nan_blocks": self.stats.nan_blocks,
             "restarts": self.stats.restarts,
+            "engine_info": {k: v for k, v in (getattr(self.engine, "load_info", {}) or {}).items()
+                            if k in ("rvc_version", "f0", "model_sr", "chunk_samples", "lookahead_frames")},
             "modulation": {"preset": self.cfg.post_preset, "strength": self.cfg.post_strength, "overrides": self.cfg.post_overrides},
             "t": time.time(),
         }

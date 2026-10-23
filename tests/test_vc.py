@@ -594,3 +594,27 @@ def test_experimental_engines_can_load(monkeypatch):
     monkeypatch.setattr(eng, "_spawn", lambda: spawned.append(1))
     eng.load()
     assert spawned == [1]
+
+
+def test_rvc_version_is_read_from_the_checkpoint(tmp_path):
+    """v1 voices (256-dim phone embedding, often no "version" key) must not be loaded as v2."""
+    torch = pytest.importorskip("torch")
+    import importlib.util
+
+    path = Path(__file__).resolve().parent.parent / "src" / "aivoice" / "rvc" / "rt_worker.py"
+    spec = importlib.util.spec_from_file_location("rtw", path)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+
+    def voice(width, **extra):
+        p = tmp_path / f"v{width}{len(extra)}.pth"
+        torch.save({"weight": {"enc_p.emb_phone.weight": torch.zeros(192, width)}, "config": [1], **extra}, str(p))
+        return str(p)
+
+    assert m.detect_rvc_version(voice(256)) == ("v1", 1)
+    assert m.detect_rvc_version(voice(768)) == ("v2", 1)
+    assert m.detect_rvc_version(voice(256, version="v2", f0=0)) == ("v2", 0)  # explicit key wins
+    p = tmp_path / "train.pth"
+    torch.save({"model": {}}, str(p))
+    with pytest.raises(RuntimeError, match="not an RVC inference model"):
+        m.detect_rvc_version(str(p))

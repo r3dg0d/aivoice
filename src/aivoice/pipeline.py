@@ -142,7 +142,7 @@ def run_live_rvc(voice, *, mode: str = "balanced", device: str = "cuda", setting
         raise RuntimeError(f"RVC realtime runtime missing: {py} (set AIVOICE_RVC_PYTHON)")
     block, extra, xfade, lookahead = RVC_BLOCKS.get(mode, RVC_BLOCKS["balanced"])
     worker = Path(__file__).parent / "rvc" / "rt_worker.py"
-    cmd = [py, str(worker), "--model", str(pth), "--pitch", str(cfg["pitch"]),
+    cmd = [py, str(worker), "--model", str(pth), "--version", str(cfg.get("version") or "auto"), "--pitch", str(cfg["pitch"]),
            "--index-rate", str(cfg["index_rate"]), "--protect", str(cfg["protect"]),
            "--threshold", str(cfg["threshold"]), "--block", str(block), "--extra", str(extra),
            "--crossfade", str(xfade), "--lookahead", str(lookahead), "--device", device]

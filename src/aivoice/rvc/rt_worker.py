@@ -22,12 +22,41 @@ import time
 import numpy as np
 
 
+def detect_rvc_version(path: str, *, trust_pickle: bool = False) -> tuple[str, int]:
+    """(version, f0) of an RVC voice .pth, read from the checkpoint itself.
+
+    rvc-python builds whatever synthesizer it is *told* (and loads the weights with strict=False), so a v1
+    voice loaded as "v2" silently gets a 768-dim network and the wrong HuBERT layer. Use the checkpoint's
+    "version" key, else the phone-embedding width (v1: 256, v2: 768); RVC's own default for files without a
+    version key is v1. Loaded weights_only=True: a voice that needs arbitrary pickle code is refused unless
+    trusted (AIVOICE_RVC_TRUST_PICKLE=1), and rvc-python's later full load can only replay these same objects.
+    """
+    import torch
+
+    try:
+        ck = torch.load(path, map_location="cpu", weights_only=True)
+    except Exception as e:  # noqa: BLE001
+        if not trust_pickle:
+            raise RuntimeError(f"{path} is not a plain-tensor RVC voice and would run pickle code to load; set "
+                               "AIVOICE_RVC_TRUST_PICKLE=1 only if you trust where it came from") from e
+        ck = torch.load(path, map_location="cpu", weights_only=False)
+    if not isinstance(ck, dict) or "weight" not in ck or "config" not in ck:
+        raise RuntimeError(f"{path} is not an RVC inference model (no weight/config; a training checkpoint?)")
+    f0 = int(ck.get("f0", 1))
+    ver = str(ck.get("version") or "").lower()
+    if ver not in ("v1", "v2"):
+        emb = ck["weight"].get("enc_p.emb_phone.weight")
+        ver = "v2" if emb is not None and emb.shape[-1] == 768 else "v1"
+    return ver, f0
+
+
 class RvcRealtime:
     """Persistent RVC model + streaming state. ``process(block)`` takes exactly ``self.block`` samples at ``sr``."""
 
     def __init__(self, *, model: str, index: str = "", pitch: float = 0.0, index_rate: float = 0.5, protect: float = 0.33,
                  block: float = 0.25, extra: float = 0.6, crossfade: float = 0.05, threshold: float = -50.0,
-                 device: str = "cuda", sr: int = 48000, log: bool = True, lookahead: float = 0.0) -> None:
+                 device: str = "cuda", sr: int = 48000, log: bool = True, lookahead: float = 0.0,
+                 version: str = "auto") -> None:
         import logging
         import warnings
 
@@ -43,8 +72,10 @@ class RvcRealtime:
         self.pitch, self.index_rate, self.protect = float(pitch), float(index_rate), float(protect)
         self.block_s = float(block)
         self.log = log
+        detected, _ = detect_rvc_version(model, trust_pickle=os.environ.get("AIVOICE_RVC_TRUST_PICKLE") == "1")
+        self.model_version = detected if version in ("auto", "", None) else version
         rvc = RVCInference(device=self.dev)
-        rvc.load_model(model, version="v2", index_path=index)
+        rvc.load_model(model, version=self.model_version, index_path=index)
         vc = rvc.vc
         from rvc_python.modules.vc.utils import load_hubert
 
@@ -184,6 +215,7 @@ def main() -> int:
     ap.add_argument("--extra", type=float, default=0.6, help="extra left context seconds")
     ap.add_argument("--crossfade", type=float, default=0.05)
     ap.add_argument("--lookahead", type=float, default=0.0, help="right context seconds (adds latency, improves edges)")
+    ap.add_argument("--version", default="auto", choices=["auto", "v1", "v2"], help="RVC model generation (auto: from the .pth)")
     ap.add_argument("--threshold", type=float, default=-50.0, help="noise gate dBFS")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--sr", type=int, default=48000)
@@ -193,7 +225,7 @@ def main() -> int:
 
     rt = RvcRealtime(model=a.model, index=a.index, pitch=a.pitch, index_rate=a.index_rate, protect=a.protect,
                      block=a.block, extra=a.extra, crossfade=a.crossfade, threshold=a.threshold, device=a.device, sr=a.sr,
-                     lookahead=a.lookahead)
+                     lookahead=a.lookahead, version=a.version)
     torch = rt.torch
     print("RVC v2 Real-Time Voice Conversion", flush=True)
     print(f"  Device:     {'cuda' if rt.dev.startswith('cuda') else 'cpu'}"
@@ -202,7 +234,7 @@ def main() -> int:
     print(f"  Index:      {a.index or '(none)'}  rate={a.index_rate}", flush=True)
     print(f"  Pitch:      {a.pitch:+g} st   block={a.block}s extra={a.extra}s xfade={a.crossfade}s gate={a.threshold}dB",
           flush=True)
-    print(f"  fp16:       {rt.is_half}   model sr={rt.tgt_sr}  f0={bool(rt.if_f0)}  version={rt.version}", flush=True)
+    print(f"  fp16:       {rt.is_half}   model sr={rt.tgt_sr}  f0={bool(rt.if_f0)}  version={rt.version} (RVC {rt.model_version})", flush=True)
     rt.warmup()
     block, SR = rt.block, rt.SR
 

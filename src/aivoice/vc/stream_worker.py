@@ -397,10 +397,11 @@ class RVCHandler:
                                   protect=float(req.get("protect", 0.33)), block=float(req.get("block", 0.25)),
                                   extra=float(req.get("extra", 0.6)), crossfade=float(req.get("crossfade", 0.05)),
                                   threshold=float(req.get("threshold", -50.0)), sr=48000, log=False,
-                                  lookahead=float(req.get("lookahead", 0.0)))
+                                  lookahead=float(req.get("lookahead", 0.0)), version=req.get("version") or "auto")
         self.rt.warmup()
         self.pending = np.zeros(0, np.float32)
-        return {"sample_rate": 48000, "block": self.rt.block, **cuda_mem()}
+        return {"sample_rate": 48000, "block": self.rt.block, "rvc_version": self.rt.model_version, "f0": bool(self.rt.if_f0),
+                "model_sr": int(self.rt.tgt_sr), **cuda_mem()}
 
     def prepare(self, req):
         return {}

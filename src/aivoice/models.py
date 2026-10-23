@@ -101,6 +101,8 @@ RVC_BASE_FILES = [
 ]
 RVC_PRETRAINED_G48K = {"path": "f0G48k.pth", "url": f"{RVC_HF}/pretrained_v2/f0G48k.pth", "size": 75465569,
                        "sha256": "b5d51f589cc3632d4eae36a315b4179397695042edc01d15312e1bddc2b764a4", "format": "torch-zip"}
+RVC_PRETRAINED_V1_G40K = {"path": "v1-f0G40k.pth", "url": f"{RVC_HF}/pretrained/f0G40k.pth", "size": 72909665,
+                          "sha256": "9115654aeef1995f7dd3c6fc4140bebbef0ca9760bed798105a2380a34299831", "format": "torch-zip"}
 CATALOG["rvc-base"] = {
     "name": "rvc-base", "backend": "rvc", "source": "HF lj1995/VoiceConversionWebUI @ e6d0c1a (RVC-Project official)",
     "paper": "RVC (no paper)", "code_license_claimed": "MIT (RVC-Project)", "code_license_gap": "none",
@@ -115,17 +117,19 @@ CATALOG["rvc-testvoice"] = {
     "name": "rvc-testvoice", "backend": "rvc", "source": "HF lj1995/VoiceConversionWebUI pretrained_v2/f0G48k.pth @ e6d0c1a",
     "paper": "RVC (no paper)", "code_license_claimed": "MIT (RVC-Project)", "code_license_gap": "none",
     "weights_license": "MIT + the repo's added research-use / user-responsibility clause",
-    "size_hint": "75 MB download -> 55 MB fp16 voice", "hf_revision": "e6d0c1a17da07c33557852f9dfa2bd44cc75737d",
+    "size_hint": "148 MB download -> two ~55 MB fp16 voices (v2 48k, v1 40k)", "hf_revision": "e6d0c1a17da07c33557852f9dfa2bd44cc75737d",
     "checksum": "HF LFS SHA-256 pinned", "install": "converted to RVC inference format and added as voice 'rvc-pretrained-base'",
-    "files": ["rvc-pretrained-base.pth"],
-    "notes": "TEST ASSET, not a cloned voice: RVC's own 48 kHz v2 pretrained generator (the starting point for training), "
+    "files": ["rvc-pretrained-base.pth", "rvc-pretrained-base-v1.pth"],
+    "notes": "TEST ASSETS, not cloned voices: RVC's own v2 48 kHz and v1 40 kHz pretrained generators (the starting point for training), "
              "saved like RVC saves a trained model. It exercises the full live RVC path (HuBERT, RMVPE, net_g, SOLA) "
              "for latency and stability tests; its timbre is a generic speaker, not anyone in particular.",
 }
 
-# RVC v2 48k model config (RVC-Project configs/v2/48k.json), in the order RVC stores it in a voice .pth.
+# RVC model configs (RVC-Project configs/v2/48k.json, configs/v1/40k.json), in the order RVC stores them in a voice .pth.
 RVC_V2_48K_CONFIG = [1025, 36, 192, 192, 768, 2, 6, 3, 0, "1", [3, 7, 11], [[1, 3, 5], [1, 3, 5], [1, 3, 5]],
                      [12, 10, 2, 2], 512, [24, 20, 4, 4], 109, 256, 48000]
+RVC_V1_40K_CONFIG = [1025, 32, 192, 192, 768, 2, 6, 3, 0, "1", [3, 7, 11], [[1, 3, 5], [1, 3, 5], [1, 3, 5]],
+                     [10, 10, 2, 2], 512, [16, 16, 4, 4], 109, 256, 40000]
 
 
 def rvc_python_dir(python: str | None = None) -> Path:
@@ -156,7 +160,7 @@ def _install_rvc_base(progress=None) -> str:
     return "RVC base models installed and verified:\n" + "\n".join(msgs)
 
 
-def make_rvc_inference_model(pretrained: Path, out: Path) -> Path:
+def make_rvc_inference_model(pretrained: Path, out: Path, *, version: str = "v2") -> Path:
     """Save an RVC training generator checkpoint the way RVC saves a finished model (fp16, no posterior encoder)."""
     import torch
 
@@ -164,27 +168,31 @@ def make_rvc_inference_model(pretrained: Path, out: Path) -> Path:
     sd = ck.get("model", ck)
     weight = {k: v.half() for k, v in sd.items() if "enc_q" not in k}
     if not any(k.startswith("dec.") for k in weight) or "emb_g.weight" not in weight:
-        raise RuntimeError(f"{pretrained} does not look like an RVC v2 generator")
-    torch.save({"weight": weight, "config": RVC_V2_48K_CONFIG, "info": "aivoice test voice from RVC pretrained_v2/f0G48k",
-                "sr": "48k", "f0": 1, "version": "v2"}, str(out))
+        raise RuntimeError(f"{pretrained} does not look like an RVC generator")
+    width = weight["enc_p.emb_phone.weight"].shape[-1]
+    if width != (768 if version == "v2" else 256):
+        raise RuntimeError(f"{pretrained}: phone embedding is {width}-dim, not an RVC {version} generator")
+    cfg, sr, src = (RVC_V2_48K_CONFIG, "48k", "pretrained_v2/f0G48k") if version == "v2" else (RVC_V1_40K_CONFIG, "40k", "pretrained/f0G40k")
+    torch.save({"weight": weight, "config": cfg, "info": f"aivoice test voice from RVC {src}", "sr": sr, "f0": 1,
+                "version": version}, str(out))
     return out
 
 
 def _install_rvc_testvoice(progress=None) -> str:
-    from .model_fetch import fetch
+    from .model_fetch import fetch, sha256
 
     target = models_dir() / "rvc-testvoice"
     target.mkdir(parents=True, exist_ok=True)
-    src = fetch(RVC_PRETRAINED_G48K, target / ".staging" / RVC_PRETRAINED_G48K["path"], progress)
-    out = make_rvc_inference_model(src, target / "rvc-pretrained-base.pth")
+    files, lines = {}, []
+    for spec, name, ver in ((RVC_PRETRAINED_G48K, "rvc-pretrained-base.pth", "v2"),
+                            (RVC_PRETRAINED_V1_G40K, "rvc-pretrained-base-v1.pth", "v1")):
+        src = fetch(spec, target / ".staging" / spec["path"], progress)
+        out = make_rvc_inference_model(src, target / name, version=ver)
+        files[out.name] = {"sha256": sha256(out), "size": out.stat().st_size, "version": ver, "derived_from": spec}
+        lines.append(f"  RVC {ver}: {out}\n    aivoice voices import-rvc {out} --name {out.stem} --no-synthesize")
     shutil.rmtree(target / ".staging", ignore_errors=True)
-    from .model_fetch import sha256
-
-    _save("rvc-testvoice", {"files": {out.name: {"sha256": sha256(out), "size": out.stat().st_size,
-                                                  "derived_from": RVC_PRETRAINED_G48K}}})
-    return (f"RVC test voice written: {out}\nImport it as a voice with:\n"
-            f"  aivoice voices import-rvc {out} --name rvc-pretrained-base\n"
-            "It is RVC's generic pretrained generator, for engine tests only.")
+    _save("rvc-testvoice", {"files": files})
+    return ("RVC test voices written (RVC's generic pretrained generators, for engine tests only):\n" + "\n".join(lines))
 
 
 TVTSYN_HF = "warisqr007/TVTSyn"
@@ -348,9 +356,10 @@ def verify_model(name: str) -> dict[str, Any]:
         ok, out = _check_files([(base / f["path"], f["size"], f["sha256"], "hf-lfs-pinned", f["format"]) for f in RVC_BASE_FILES])
         return {"name": name, "ok": ok, "files": out}
     if name == "rvc-testvoice":
-        f = models_dir() / "rvc-testvoice" / "rvc-pretrained-base.pth"
-        r = rec.get(f.name) or {}
-        ok, out = _check_files([(f, r.get("size"), r.get("sha256"), "recorded (derived from pinned f0G48k.pth)", "torch-zip")])
+        d = models_dir() / "rvc-testvoice"
+        ok, out = _check_files([(d / n, r.get("size"), r.get("sha256"), f"recorded (derived from pinned RVC {r.get('version', 'v2')} "
+                                 "pretrained generator)", "torch-zip") for n, r in rec.items()] or
+                               [(d / "rvc-pretrained-base.pth", None, None, "recorded", "torch-zip")])
         return {"name": name, "ok": ok, "files": out}
     raise KeyError(f"verify supports meanvc2, tvtsyn, rvc-base, rvc-testvoice (got {name!r})")
 

@@ -167,7 +167,7 @@ ShellRoot {
                             Text { Layout.fillWidth: true; elide: Text.ElideRight; font.family: "Zerodot"; font.pixelSize: 18; color: "#f2f0ff"
                                 text: root.major === "vc" ? ((root.live.running && root.live.voice) || root.voice || "no voice installed") : (root.preset + " · " + Math.round(root.strength) + "%") }
                             Text { font.family: "NullType"; font.pixelSize: 11; color: "#9a96b3"
-                                text: (root.live.running ? ("engine " + root.live.engine + (root.live.engine !== root.live.selected_engine ? " (fallback from " + root.live.selected_engine + ")" : "")) : ("mode " + root.mode)) + "   ·   v" + (root.st.version || "?") + (root.st.running ? "   ·   pid " + root.st.pid : "") }
+                                text: (root.live.running ? ("engine " + root.live.engine + ((root.live.engine_info || {}).rvc_version ? " " + root.live.engine_info.rvc_version : "") + (root.live.engine !== root.live.selected_engine ? " (fallback from " + root.live.selected_engine + ")" : "")) : ("mode " + root.mode)) + "   ·   v" + (root.st.version || "?") + (root.st.running ? "   ·   pid " + root.st.pid : "") }
                         }
                     }
                     GridLayout { Layout.fillWidth: true; columns: 4; columnSpacing: 8; rowSpacing: 6; visible: !!root.live.running
