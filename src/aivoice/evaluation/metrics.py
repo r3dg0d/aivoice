@@ -99,7 +99,7 @@ def available_asr() -> Any | None:
     """A loaded ASR backend for WER if one is installed and registered locally, else None."""
     from ..asr import available_backends, create_backend
 
-    for name in ("moonshine-small", "parakeet"):
+    for name in ("moonshine-small", "parakeet", "whisper-small-en"):
         if available_backends().get(name) is None:
             try:
                 be = create_backend(name)

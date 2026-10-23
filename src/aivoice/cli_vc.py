@@ -615,7 +615,11 @@ def benchmark_vc(engine_list, voices, references, sources, synthetic, quality, o
     else:
         names = [n.strip() for n in engine_list.split(",") if n.strip()]
     syn_src, syn_tgt = synthetic_clips(2, 2)
-    srcs = [Clip(Path(p).stem, *read_wav(p)) for p in sources] or syn_src
+    def _clip(p):
+        txt = Path(p).with_suffix(".txt")  # optional transcript next to the source enables WER/CER
+        return Clip(Path(p).stem, *read_wav(p), text=txt.read_text(encoding="utf-8").strip() if txt.is_file() else None)
+
+    srcs = [_clip(p) for p in sources] or syn_src
     tmp = Path(tempfile.mkdtemp(prefix="aivoice-vcbench-"))
     targets = [resolve_target(v) for v in voices] + [VoiceTarget(Path(r).stem, reference=Path(r)) for r in references]
     if not targets:

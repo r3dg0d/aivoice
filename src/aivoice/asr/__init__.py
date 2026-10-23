@@ -7,7 +7,7 @@ from typing import Any
 
 from .base import ASRBackend, ASRCapabilities, ASRError, TranscriptUpdate, streaming_view
 
-BACKENDS = ("moonshine-tiny", "moonshine-small", "moonshine-medium", "parakeet")
+BACKENDS = ("moonshine-tiny", "moonshine-small", "moonshine-medium", "parakeet", "whisper-small-en")
 
 
 def available_backends() -> dict[str, str | None]:
@@ -17,6 +17,8 @@ def available_backends() -> dict[str, str | None]:
     for size in ("tiny", "small", "medium"):
         out[f"moonshine-{size}"] = ms
     out["parakeet"] = None if importlib.util.find_spec("nemo") else "pip install 'nemo_toolkit[asr]' (+ CUDA torch)"
+    hf = importlib.util.find_spec("transformers") and importlib.util.find_spec("torch")
+    out["whisper-small-en"] = None if hf else "pip install 'aivoice[repro]' (transformers + torch)"
     return out
 
 
@@ -49,6 +51,10 @@ def create_backend(name: str, *, settings: dict[str, Any] | None = None, registr
         nemo = find_nemo_file(entry["path"]) if entry else None
         dev = s.get("parakeet_device") or ("cuda" if _has_gpu() else "cpu")
         return ParakeetBackend(nemo_path=nemo, device=dev)
+    if name == "whisper-small-en":
+        from .whisper_hf import WhisperHFBackend
+
+        return WhisperHFBackend(allow_download=bool(s.get("allow_model_download")))
     if name == "scripted":
         from .mock import ScriptedASR
 
