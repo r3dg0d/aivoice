@@ -198,7 +198,7 @@ def test_create_backend_names():
     assert create_backend("scripted").name == "scripted"
     with pytest.raises(ASRError):
         create_backend("nope")
-    assert set(available_backends()) == {"moonshine-tiny", "moonshine-small", "moonshine-medium", "parakeet"}
+    assert set(available_backends()) == {"moonshine-tiny", "moonshine-small", "moonshine-medium", "parakeet", "whisper-small-en"}
 
 
 # --- benchmark + selection --------------------------------------------------
@@ -328,3 +328,13 @@ def test_non_speculative_only_commits_at_final():
     st = TranscriptStabilizer(speculative=False)
     assert st.update("hello there friend how are you") == []
     assert st.finalize("Hello there friend, how are you?").text == "Hello there friend, how are you?"
+
+
+def test_whisper_backend_is_offline_unless_allowed():
+    from aivoice.asr import create_backend
+    from aivoice.asr.whisper_hf import REVISION
+
+    be = create_backend("whisper-small-en")
+    assert be.allow_download is False and len(REVISION) == 40
+    caps = be.get_capabilities()
+    assert caps.native_streaming is False and "whisper-small.en" in caps.notes
