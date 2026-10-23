@@ -72,10 +72,12 @@ def run_live_subprocess(
         return proc.wait()
 
 
-RVC_BLOCKS = {  # mode -> (block s, extra context s, crossfade s)
-    "lowest-latency": (0.15, 0.4, 0.04),
-    "balanced": (0.25, 0.6, 0.05),
-    "best-quality": (0.35, 1.0, 0.08),
+RVC_BLOCKS = {  # mode -> (block s, extra context s, crossfade s, lookahead s); see docs/benchmarks/rvc-presets.md
+    # lowest-latency: 100 ms block + 40 ms right context. Measured on 6 LibriSpeech speakers (RTX 4090):
+    # 180 ms algorithmic and WER 8.9 % vs the old (0.15, 0.4, 0.04): 200 ms and 11.6 % (better on 5/6 speakers).
+    "lowest-latency": (0.10, 0.5, 0.03, 0.04),
+    "balanced": (0.25, 0.6, 0.05, 0.0),
+    "best-quality": (0.35, 1.0, 0.08, 0.0),
 }
 RT_DEFAULTS = {"engine": "rvc", "pitch": 0.0, "index_rate": 0.5, "threshold": -50.0, "protect": 0.33}
 
@@ -138,12 +140,12 @@ def run_live_rvc(voice, *, mode: str = "balanced", device: str = "cuda", setting
     py = os.environ.get("AIVOICE_RVC_PYTHON") or str(Path.home() / ".local/share/aivoice/rvc-venv/bin/python")
     if not Path(py).exists():
         raise RuntimeError(f"RVC realtime runtime missing: {py} (set AIVOICE_RVC_PYTHON)")
-    block, extra, xfade = RVC_BLOCKS.get(mode, RVC_BLOCKS["balanced"])
+    block, extra, xfade, lookahead = RVC_BLOCKS.get(mode, RVC_BLOCKS["balanced"])
     worker = Path(__file__).parent / "rvc" / "rt_worker.py"
     cmd = [py, str(worker), "--model", str(pth), "--pitch", str(cfg["pitch"]),
            "--index-rate", str(cfg["index_rate"]), "--protect", str(cfg["protect"]),
            "--threshold", str(cfg["threshold"]), "--block", str(block), "--extra", str(extra),
-           "--crossfade", str(xfade), "--device", device]
+           "--crossfade", str(xfade), "--lookahead", str(lookahead), "--device", device]
     if idx is not None:
         cmd += ["--index", str(idx)]
     env = os.environ.copy()

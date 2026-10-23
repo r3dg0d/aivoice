@@ -27,7 +27,7 @@ class RvcRealtime:
 
     def __init__(self, *, model: str, index: str = "", pitch: float = 0.0, index_rate: float = 0.5, protect: float = 0.33,
                  block: float = 0.25, extra: float = 0.6, crossfade: float = 0.05, threshold: float = -50.0,
-                 device: str = "cuda", sr: int = 48000, log: bool = True) -> None:
+                 device: str = "cuda", sr: int = 48000, log: bool = True, lookahead: float = 0.0) -> None:
         import logging
         import warnings
 
@@ -65,7 +65,10 @@ class RvcRealtime:
         self.xfade = int(round(crossfade * sr / zc)) * zc
         self.sola_search = zc
         self.extra = int(round(extra * sr / zc)) * zc
-        self.total = self.extra + self.xfade + self.sola_search + self.block
+        # Right context: the emitted segment ends `lookahead` before the newest sample, so HuBERT/net_g see a
+        # little future instead of converting the window's edge (adds exactly `lookahead` latency).
+        self.lookahead = int(round(lookahead * sr / zc)) * zc
+        self.total = self.extra + self.xfade + self.sola_search + self.block + self.lookahead
         self.fade_in = (np.sin(0.5 * np.pi * np.linspace(0, 1, self.xfade)) ** 2).astype(np.float32)
         self.fade_out = 1 - self.fade_in
         self.gate = 10 ** (threshold / 20)
@@ -101,12 +104,16 @@ class RvcRealtime:
         block, xfade, sola_search = self.block, self.xfade, self.sola_search
         t0 = time.perf_counter()
         self.buf = np.concatenate([self.buf[block:], inp])
-        rms = float(np.sqrt(np.mean(inp ** 2)) + 1e-9)
+        # gate on the audio that is about to be emitted (with lookahead that is not the newest block)
+        gate_src = self.buf[-(block + self.lookahead):-self.lookahead] if self.lookahead else inp
+        rms = float(np.sqrt(np.mean(gate_src ** 2)) + 1e-9)
         if rms < self.gate:
             out = np.zeros(block, dtype=np.float32)
             self.sola_buf[:] = 0
         else:
             y = self.convert(self.buf)
+            if self.lookahead:
+                y = y[: y.shape[0] - self.lookahead]
             need = block + sola_search + xfade
             y = y[-need:] if y.shape[0] >= need else np.pad(y, (need - y.shape[0], 0))
             # SOLA: best alignment of the new head against the previous tail
@@ -151,6 +158,7 @@ def main() -> int:
     ap.add_argument("--block", type=float, default=0.25, help="block seconds")
     ap.add_argument("--extra", type=float, default=0.6, help="extra left context seconds")
     ap.add_argument("--crossfade", type=float, default=0.05)
+    ap.add_argument("--lookahead", type=float, default=0.0, help="right context seconds (adds latency, improves edges)")
     ap.add_argument("--threshold", type=float, default=-50.0, help="noise gate dBFS")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--sr", type=int, default=48000)
@@ -159,7 +167,8 @@ def main() -> int:
     a = ap.parse_args()
 
     rt = RvcRealtime(model=a.model, index=a.index, pitch=a.pitch, index_rate=a.index_rate, protect=a.protect,
-                     block=a.block, extra=a.extra, crossfade=a.crossfade, threshold=a.threshold, device=a.device, sr=a.sr)
+                     block=a.block, extra=a.extra, crossfade=a.crossfade, threshold=a.threshold, device=a.device, sr=a.sr,
+                     lookahead=a.lookahead)
     torch = rt.torch
     print("RVC v2 Real-Time Voice Conversion", flush=True)
     print(f"  Device:     {'cuda' if rt.dev.startswith('cuda') else 'cpu'}"

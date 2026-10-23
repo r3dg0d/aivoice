@@ -396,7 +396,8 @@ class RVCHandler:
                                   pitch=float(req.get("pitch", 0.0)), index_rate=float(req.get("index_rate", 0.5)),
                                   protect=float(req.get("protect", 0.33)), block=float(req.get("block", 0.25)),
                                   extra=float(req.get("extra", 0.6)), crossfade=float(req.get("crossfade", 0.05)),
-                                  threshold=float(req.get("threshold", -50.0)), sr=48000, log=False)
+                                  threshold=float(req.get("threshold", -50.0)), sr=48000, log=False,
+                                  lookahead=float(req.get("lookahead", 0.0)))
         self.rt.warmup()
         self.pending = np.zeros(0, np.float32)
         return {"sample_rate": 48000, "block": self.rt.block, **cuda_mem()}

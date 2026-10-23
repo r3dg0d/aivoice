@@ -1,0 +1,71 @@
+{
+ "SOURCE/src-1272": {
+  "wer": 0.0339
+ },
+ "SOURCE/src-2035": {
+  "wer": 0.029
+ },
+ "SOURCE/src-5694": {
+  "wer": 0.0909
+ },
+ "rvc-A_balanced/src-1272": {
+  "wer": 0.0339,
+  "clicks": 10796,
+  "sim_to_baseline": 1.0
+ },
+ "rvc-A_balanced/src-2035": {
+  "wer": 0.029,
+  "clicks": 7786,
+  "sim_to_baseline": 1.0
+ },
+ "rvc-B_lowest/src-1272": {
+  "wer": 0.1017,
+  "clicks": 8632,
+  "sim_to_baseline": 0.9877
+ },
+ "rvc-B_lowest/src-2035": {
+  "wer": 0.0725,
+  "clicks": 6878,
+  "sim_to_baseline": 0.9887
+ },
+ "rvc-C/src-1272": {
+  "wer": 0.1525,
+  "clicks": 7474,
+  "sim_to_baseline": 0.9883
+ },
+ "rvc-C/src-2035": {
+  "wer": 0.087,
+  "clicks": 5771,
+  "sim_to_baseline": 0.9913
+ },
+ "rvc-D/src-1272": {
+  "wer": 0.1525,
+  "clicks": 8997,
+  "sim_to_baseline": 0.9869
+ },
+ "rvc-D/src-2035": {
+  "wer": 0.0435,
+  "clicks": 7868,
+  "sim_to_baseline": 0.9864
+ },
+ "rvc-E/src-1272": {
+  "wer": 0.1356,
+  "clicks": 7779,
+  "sim_to_baseline": 0.9759
+ },
+ "rvc-E/src-2035": {
+  "wer": 0.0435,
+  "clicks": 6273,
+  "sim_to_baseline": 0.9826
+ },
+ "rvc-F/src-1272": {
+  "wer": 0.1864,
+  "clicks": 10148,
+  "sim_to_baseline": 0.9629
+ },
+ "rvc-F/src-2035": {
+  "wer": 0.1449,
+  "clicks": 5069,
+  "sim_to_baseline": 0.9688
+ }
+}

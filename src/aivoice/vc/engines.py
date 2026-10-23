@@ -422,7 +422,12 @@ class RVCStreamEngine(WorkerVCEngine):
     name = "rvc"
     handler = "rvc"
     modules = ("torch", "torchaudio", "rvc_python", "faiss")
-    RVC_BLOCKS = {"lowest-latency": (0.15, 0.4, 0.04), "balanced": (0.25, 0.6, 0.05), "best-quality": (0.35, 1.0, 0.08)}
+
+    @property
+    def RVC_BLOCKS(self):  # noqa: N802 - shared with the legacy runtime
+        from ..pipeline import RVC_BLOCKS
+
+        return RVC_BLOCKS
 
     def __init__(self, **kw: Any) -> None:
         if "python" not in kw:
@@ -430,17 +435,18 @@ class RVCStreamEngine(WorkerVCEngine):
         super().__init__(**kw)
 
     def capabilities(self) -> VCCapabilities:
-        b, _, x = self.RVC_BLOCKS.get(self.options.quality, self.RVC_BLOCKS["balanced"])
+        b, _, x, la = self.RVC_BLOCKS.get(self.options.quality, self.RVC_BLOCKS["balanced"])
         return VCCapabilities(
             name="rvc", display_name="RVC v1/v2 (live)", task=TASK_VC, zero_shot=False, requires_reference=False,
             requires_model_file=True, supports_pitch_control=True, supports_index=True, supports_cross_lingual=True,
-            sample_rate=48000, chunk_ms=b * 1000, lookahead_ms=0.0, algorithmic_latency_ms=(b + x + 0.01) * 1000,
+            sample_rate=48000, chunk_ms=b * 1000, lookahead_ms=la * 1000, algorithmic_latency_ms=(b + x + 0.01 + la) * 1000,
             devices=("cuda", "cpu"), license="RVC-Project MIT; rvc-python per its package; voice models: per uploader",
             code="aivoice rvc/rt_worker.py (RVC realtime-GUI design) on rvc-python", weights="per-voice .pth/.index; "
-            "rvc-python fetches HuBERT/RMVPE base models itself", evidence="community-implementation",
+            "HuBERT/RMVPE: `aivoice models install rvc-base` (official, SHA-256 pinned)", evidence="community-implementation",
             install="scripts/aivoice-runtime/build-rvc-venv.sh (Python 3.10 venv with rvc-python)",
             notes="Not zero-shot: needs a model trained on the target voice. .pth files are pickles: rvc-python loads "
-                  "them with code execution, so only use models you trust. Latency = block + crossfade + 10 ms SOLA search.")
+                  "them with code execution, so only use models you trust. Latency = block + crossfade + 10 ms SOLA search "
+                  "+ lookahead (lowest-latency keeps 40 ms of right context; measured WER in docs/benchmarks/rvc-presets.md).")
 
     needs_target_at_load = True
 
@@ -457,13 +463,13 @@ class RVCStreamEngine(WorkerVCEngine):
         t = self.target
         if t is None or t.model_file is None:
             raise VCError("RVC needs a voice with an RVC .pth")
-        b, e, x = self.RVC_BLOCKS.get(self.options.quality, self.RVC_BLOCKS["balanced"])
+        b, e, x, la = self.RVC_BLOCKS.get(self.options.quality, self.RVC_BLOCKS["balanced"])
         rt = t.extra.get("rt", {})
         return {"device": self.device, "rt_worker": str(RT_WORKER), "model": str(t.model_file),
                 "index": str(t.index_file) if t.index_file else "", "pitch": self.options.pitch_semitones or rt.get("pitch", 0.0),
                 "index_rate": self.options.index_rate if self.options.index_rate is not None else rt.get("index_rate", 0.5),
                 "protect": self.options.protect if self.options.protect is not None else rt.get("protect", 0.33),
-                "threshold": rt.get("threshold", -50.0), "block": b, "extra": e, "crossfade": x}
+                "threshold": rt.get("threshold", -50.0), "block": b, "extra": e, "crossfade": x, "lookahead": la}
 
     def prepare_reference(self, target: VoiceTarget | None) -> None:
         BaseEngine.prepare_reference(self, target)

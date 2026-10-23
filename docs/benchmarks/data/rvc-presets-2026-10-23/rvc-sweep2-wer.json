@@ -1,0 +1,131 @@
+{
+ "SOURCE/src-1272": {
+  "wer": 0.1126
+ },
+ "SOURCE/src-2035": {
+  "wer": 0.028
+ },
+ "SOURCE/src-5694": {
+  "wer": 0.0476
+ },
+ "rvc-A_balanced/src-1272": {
+  "wer": 0.1258,
+  "clicks": 28474,
+  "sim_to_baseline": 1.0
+ },
+ "rvc-A_balanced/src-2035": {
+  "wer": 0.042,
+  "clicks": 17808,
+  "sim_to_baseline": 1.0
+ },
+ "rvc-A_balanced/src-5694": {
+  "wer": 0.1032,
+  "clicks": 14735,
+  "sim_to_baseline": 1.0
+ },
+ "rvc-B_lowest/src-1272": {
+  "wer": 0.1921,
+  "clicks": 28942,
+  "sim_to_baseline": 0.9926
+ },
+ "rvc-B_lowest/src-2035": {
+  "wer": 0.0559,
+  "clicks": 17558,
+  "sim_to_baseline": 0.9944
+ },
+ "rvc-B_lowest/src-5694": {
+  "wer": 0.127,
+  "clicks": 13448,
+  "sim_to_baseline": 0.9928
+ },
+ "rvc-C_100/src-1272": {
+  "wer": 0.1722,
+  "clicks": 22885,
+  "sim_to_baseline": 0.9919
+ },
+ "rvc-C_100/src-2035": {
+  "wer": 0.049,
+  "clicks": 13291,
+  "sim_to_baseline": 0.9939
+ },
+ "rvc-C_100/src-5694": {
+  "wer": 0.0635,
+  "clicks": 12960,
+  "sim_to_baseline": 0.9911
+ },
+ "rvc-G_100la40/src-1272": {
+  "wer": 0.1391,
+  "clicks": 27683,
+  "sim_to_baseline": 0.9938
+ },
+ "rvc-G_100la40/src-2035": {
+  "wer": 0.0629,
+  "clicks": 16336,
+  "sim_to_baseline": 0.9953
+ },
+ "rvc-G_100la40/src-5694": {
+  "wer": 0.0873,
+  "clicks": 11582,
+  "sim_to_baseline": 0.9945
+ },
+ "rvc-H_80la50/src-1272": {
+  "wer": 0.1722,
+  "clicks": 27136,
+  "sim_to_baseline": 0.9941
+ },
+ "rvc-H_80la50/src-2035": {
+  "wer": 0.049,
+  "clicks": 16647,
+  "sim_to_baseline": 0.995
+ },
+ "rvc-H_80la50/src-5694": {
+  "wer": 0.0952,
+  "clicks": 14016,
+  "sim_to_baseline": 0.9916
+ },
+ "rvc-I_60la60/src-1272": {
+  "wer": 0.1656,
+  "clicks": 25644,
+  "sim_to_baseline": 0.992
+ },
+ "rvc-I_60la60/src-2035": {
+  "wer": 0.0909,
+  "clicks": 15196,
+  "sim_to_baseline": 0.9941
+ },
+ "rvc-I_60la60/src-5694": {
+  "wer": 0.0873,
+  "clicks": 15087,
+  "sim_to_baseline": 0.9898
+ },
+ "rvc-J_150la40/src-1272": {
+  "wer": 0.1126,
+  "clicks": 26586,
+  "sim_to_baseline": 0.996
+ },
+ "rvc-J_150la40/src-2035": {
+  "wer": 0.042,
+  "clicks": 15072,
+  "sim_to_baseline": 0.9971
+ },
+ "rvc-J_150la40/src-5694": {
+  "wer": 0.0714,
+  "clicks": 13575,
+  "sim_to_baseline": 0.9955
+ },
+ "rvc-K_100la80/src-1272": {
+  "wer": 0.1391,
+  "clicks": 25723,
+  "sim_to_baseline": 0.9952
+ },
+ "rvc-K_100la80/src-2035": {
+  "wer": 0.0629,
+  "clicks": 15484,
+  "sim_to_baseline": 0.996
+ },
+ "rvc-K_100la80/src-5694": {
+  "wer": 0.0635,
+  "clicks": 13752,
+  "sim_to_baseline": 0.9943
+ }
+}
