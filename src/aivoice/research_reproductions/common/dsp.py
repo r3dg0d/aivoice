@@ -29,8 +29,14 @@ def mel_basis(sr: int, n_fft: int, n_mels: int, fmin: float = 0.0, fmax: float |
 
 def stft_mag(x: torch.Tensor, n_fft: int, hop: int, win: int | None = None, causal: bool = False,
              power: float = 1.0) -> torch.Tensor:
-    """x [B, T] -> magnitude [B, n_fft//2+1, frames]."""
+    """x [B, T] -> magnitude [B, n_fft//2+1, frames] (always computed in float32).
+
+    cuFFT has no bf16 kernels, so under bf16 autocast torch.stft raised and the RT-VC vocoder stage could not
+    train; half-precision FFTs would also cost loss accuracy. The STFT runs in fp32 with autocast disabled."""
     win = win or n_fft
+    if x.dtype != torch.float32 or torch.is_autocast_enabled():
+        with torch.autocast(device_type=x.device.type, enabled=False):
+            return stft_mag(x.float(), n_fft, hop, win, causal=causal, power=power)
     window = torch.hann_window(win, device=x.device, dtype=x.dtype)
     if causal:
         x = F.pad(x, (n_fft - hop, 0))

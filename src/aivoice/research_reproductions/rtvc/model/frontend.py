@@ -37,8 +37,13 @@ class CausalMelMFCC(nn.Module):
         dct[0] /= math.sqrt(2.0)
         self.register_buffer("dct", dct, persistent=False)
 
+    def _stft(self, x: torch.Tensor) -> torch.Tensor:
+        # fp32 STFT with autocast off: cuFFT has no bf16 kernels (bf16 training crashed here)
+        with torch.autocast(device_type=x.device.type, enabled=False):
+            return torch.stft(x.float(), self.n_fft, self.hop, self.n_fft, self.window.float(), center=False, return_complex=True)
+
     def _frames(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        spec = torch.stft(x, self.n_fft, self.hop, self.n_fft, self.window, center=False, return_complex=True)
+        spec = self._stft(x)
         power = spec.abs() ** 2                                 # [B, F, t]
         logmel = torch.log(self.basis @ power + 1e-6)
         mfcc = self.dct @ (10.0 * logmel / math.log(10.0))      # dB-scaled log-mel, ortho DCT-II
@@ -62,5 +67,4 @@ class CausalMelMFCC(nn.Module):
     def loudness(self, wav: torch.Tensor) -> torch.Tensor:
         """Loudness target as the official helper defines it: mean STFT magnitude over frequency (power=1)."""
         x = nn.functional.pad(wav, (self.n_fft - self.hop, 0))
-        spec = torch.stft(x, self.n_fft, self.hop, self.n_fft, self.window, center=False, return_complex=True)
-        return spec.abs().mean(1, keepdim=True)  # [B, 1, t]
+        return self._stft(x).abs().mean(1, keepdim=True)  # [B, 1, t]

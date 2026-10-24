@@ -141,11 +141,12 @@ class ChannelsTransformer(nn.Module):
 
     def __init__(self, dim_in: int, d_model: int, depth: int, heads: int, context: int,
                  right_context: int | list[int] = 0,
-                 dim_out: int | None = None, ff_mult: int = 4) -> None:
+                 dim_out: int | None = None, ff_mult: int = 4, final_norm: bool = True) -> None:
         super().__init__()
         self.inp = nn.Linear(dim_in, d_model) if dim_in != d_model else nn.Identity()
         self.tf = Transformer(d_model, depth, heads, context, right_context, ff_mult)
-        self.norm = nn.LayerNorm(d_model)
+        # final_norm=False matches Mimi's ProjectedTransformer (TVTSyn): no LayerNorm after the last block
+        self.norm = nn.LayerNorm(d_model) if final_norm else nn.Identity()
         self.out = nn.Linear(d_model, dim_out) if dim_out and dim_out != d_model else nn.Identity()
         self.grad_checkpoint = False
 

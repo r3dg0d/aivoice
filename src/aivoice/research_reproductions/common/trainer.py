@@ -241,6 +241,8 @@ class Trainer:
                 raise RuntimeError("--device cuda requested but CUDA is not available")
             if self.world > 1:
                 d = f"cuda:{self.local_rank}"
+            elif d == "cuda":
+                d = "cuda:0"  # torch.cuda.set_device() rejects a device without an index (`--device cuda` crashed)
             torch.cuda.set_device(torch.device(d))
         if self.cfg.precision == "fp16" and not d.startswith("cuda"):
             raise RuntimeError("--precision fp16 needs CUDA; use bf16 or fp32 on CPU")

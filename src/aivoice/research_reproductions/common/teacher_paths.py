@@ -24,6 +24,13 @@ class TeacherUnavailable(RuntimeError):
 def teacher_dir(name: str, explicit: str | Path | None = None) -> Path:
     d = explicit or os.environ.get(f"AIVOICE_TEACHER_{name.upper().replace('-', '_').replace('.', '_')}")
     if not d:
+        # installed default (scripts/aivoice-runtime/train-reproductions.sh links its verified snapshots here),
+        # so an exported engine finds its teacher when launched from the widget without flags or env vars
+        from aivoice.paths import data_home
+
+        if (data_home() / "teachers" / name / "config.json").exists():
+            d = data_home() / "teachers" / name
+    if not d:
         raise TeacherUnavailable(
             f"teacher {name!r} ({KNOWN.get(name, ('?',))[0]}) not configured: download it yourself "
             f"(e.g. `hf download {KNOWN.get(name, ('?',))[0]} --local-dir DIR`) and pass --teacher {name}=DIR")

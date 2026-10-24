@@ -30,12 +30,12 @@ class FactorizedVQ(nn.Module):
         ze = self.inp(z)                                         # [B, cdim, T]
         e = ze.transpose(1, 2)
         cb = self.codebook.weight
+        # as in the official FactorizedVectorQuantize: L2 normalisation is used ONLY for the nearest-code lookup
+        # (cosine distance); losses and the straight-through output use the raw projection and raw code vector.
+        # Normalising them too (the earlier port) collapsed the content encoder to ~3 codes on real data.
         en, cbn = (F.normalize(e, dim=-1), F.normalize(cb, dim=-1)) if self.l2 else (e, cb)
         idx = (en @ cbn.t()).argmax(-1) if self.l2 else torch.cdist(e, cb[None]).argmin(-1)
         zq = self.codebook(idx)
-        if self.l2:
-            zq = F.normalize(zq, dim=-1)
-            e = en
         commit = F.mse_loss(e, zq.detach()) * self.commitment
         cbl = F.mse_loss(zq, e.detach()) * self.cb_w
         zq = e + (zq - e).detach()                               # straight-through
@@ -47,7 +47,10 @@ class ContentEncoder(nn.Module):
         super().__init__()
         self.cfg = cfg
         self.cnn = CausalSEANetEncoder(cfg.dim, cfg.n_filters, cfg.strides)
-        self.tf = ChannelsTransformer(cfg.dim, cfg.dim, cfg.depth, cfg.heads, cfg.context, list(cfg.right_context))
+        # no output LayerNorm, as in the official ProjectedTransformer: with it the encoder never left the
+        # label-marginal plateau at the paper's lr 5e-4 (CE stuck at ~5.1 on real data; 0.25 without it)
+        self.tf = ChannelsTransformer(cfg.dim, cfg.dim, cfg.depth, cfg.heads, cfg.context, list(cfg.right_context),
+                                      final_norm=False)
         self.vq = FactorizedVQ(cfg.dim, cfg.codebook_size, cfg.codebook_dim, cfg.commitment, cfg.codebook_loss_weight,
                                cfg.l2_normalize)
         self.classifier = nn.Conv1d(cfg.dim, cfg.num_codes, 1)  # training only

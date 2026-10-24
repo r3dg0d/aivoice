@@ -189,6 +189,13 @@ def repro_prepare(name, dataset, output, stage, config, sets, teachers, device, 
     _echo_json(info)
 
 
+def _gate_rows(rows: list[dict], min_s: float = 0.0, n: int = 2) -> list[dict]:
+    """The tiny-overfit gate's utterances: training rows that pass the recipe's own duration filter (e.g.
+    ZeroVC's 4 s minimum), so the gate never ends up with fewer items than one batch."""
+    usable = [r for r in rows if r.get("split", "train") == "train" and r.get("duration", 1e9) >= min_s]
+    return (usable if len(usable) >= n else rows)[:n]
+
+
 def _recipe_kwargs(key: str, dataset: str, teachers: dict[str, str], content_ckpt: str | None) -> tuple[Any, dict]:
     """Manifest + cache arguments from a prepared run directory (prepared.json), a manifest, or nothing."""
     from .research_reproductions.common.features import FeatureCache
@@ -299,7 +306,7 @@ def _run_training(name, stage, config, sets, dataset, output, resume, device, pr
     gate_dir = output / "overfit"
     if not resume and not overfit_passed(gate_dir, model_cfg):
         # phase B: the same recipe on the first 2 utterances, fixed crops; must pass before any large run
-        rows = read_manifest(manifest)[:2]
+        rows = _gate_rows(read_manifest(manifest), getattr(cfg, "min_utt_s", 0.0) or 0.0)
         click.echo(f"[{key}] running the mandatory tiny-overfit gate ({overfit_steps} steps on 2 utterances)...", err=True)
         rep = run_overfit(lambda: r.recipe(stage, _config(key, r, config, stage, sets)[0], rows,
                                             **{**kw, "fixed_crops": True, "val_manifest": None}),

@@ -52,8 +52,19 @@ def streaming_report(model: Any, target: Any, long_minutes: float = 0.0) -> dict
     from . import harness
 
     t0 = time.time()
-    rep = harness.run_all(model, target, long_minutes,
-                          state_bytes=lambda s: s.state_bytes() if hasattr(s, "state_bytes") else 0)
+    # exactness tests check the streaming algorithm, so run them in full fp32: cuDNN convolutions default to
+    # TF32 on Ampere+, whose ~1e-4 rounding differs between chunk shapes and failed the 1e-4 chunk-invariance
+    # tolerance on GPU while the same checkpoint was exact (3e-7) on CPU. Tolerances are unchanged.
+    import torch
+
+    prev = (torch.backends.cuda.matmul.allow_tf32, torch.backends.cudnn.allow_tf32)
+    torch.backends.cuda.matmul.allow_tf32 = torch.backends.cudnn.allow_tf32 = False
+    try:
+        rep = harness.run_all(model, target, long_minutes,
+                              state_bytes=lambda s: s.state_bytes() if hasattr(s, "state_bytes") else 0)
+    finally:
+        torch.backends.cuda.matmul.allow_tf32, torch.backends.cudnn.allow_tf32 = prev
+    rep["tf32"] = False
     rep["label"] = MEASURED
     rep["seconds"] = round(time.time() - t0, 1)
     return rep

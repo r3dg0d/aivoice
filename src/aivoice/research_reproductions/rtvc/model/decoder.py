@@ -130,7 +130,10 @@ class DDSPVocoder(nn.Module):
         """Frame-rate inputs [B, *, t] (f0 Hz) + speaker embedding [B, E] -> waveform [B, t*80]."""
         a, c, H = self._controls(self.enc(self._inputs(f0, loudness, periodicity, ema)), g)
         gen = torch.Generator().manual_seed(seed)
-        y, _ = self._synth(f0, a, c, H, g, {}, gen)
+        # DSP synthesis in fp32 with autocast off: cuFFT has no bf16 kernels, so bf16 training of the
+        # vocoder stage raised in torch.fft; the networks above still run under autocast.
+        with torch.autocast(device_type=f0.device.type, enabled=False):
+            y, _ = self._synth(f0.float(), a.float(), c.float(), H.float(), g.float(), {}, gen)
         return y
 
     def step(self, f0, loudness, periodicity, ema, g, state: State | None, seed: int = 0) -> tuple[torch.Tensor, State]:
