@@ -17,7 +17,15 @@ from typing import Any
 
 import click
 
-VC_ENGINE_CHOICES = ["auto", "xvc", "rvc", "meanvc2", "tvtsyn", "dsp", "passthrough", "stylestream", "streamvoiceanon", "vossa"]
+def _repro_choices() -> list[str]:
+    from .vc.engines import repro_engines  # torch-free registry
+
+    return repro_engines()
+
+
+# + the paper reproductions (rtvc, zerovc-repro, tvtsyn-*): the widget's Experimental tab starts them by name
+VC_ENGINE_CHOICES = ["auto", "xvc", "rvc", "meanvc2", "tvtsyn", "dsp", "passthrough", "stylestream", "streamvoiceanon",
+                     "vossa", *_repro_choices()]
 QUALITIES = ["lowest-latency", "balanced", "best-quality"]
 
 

@@ -660,7 +660,8 @@ class ReproVCEngine(WorkerVCEngine):
         kw.setdefault("python", sys.executable)
         self.name = key
         super().__init__(**kw)
-        self.device = kw.get("device") or _cfg(key.replace("-", "_"), "device", "cpu")
+        # GPU when present, like the worker engines: on CPU TVTSyn ran at RTF 1.85 (13 underruns in 6 s)
+        self.device = kw.get("device") or _cfg(key.replace("-", "_"), "device", "cuda" if _cuda_available() else "cpu")
 
     def capabilities(self) -> VCCapabilities:
         from ..research_reproductions import registry

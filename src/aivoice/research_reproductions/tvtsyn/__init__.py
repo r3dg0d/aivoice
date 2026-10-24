@@ -36,7 +36,7 @@ class TVTSynReproduction(Reproduction):
     def load_streaming(self, checkpoint, device: str = "cpu", allow_untrained: bool = False, **kw: Any):
         from .streaming.inference import TVTSynStreaming
 
-        return TVTSynStreaming.from_checkpoint(checkpoint, device, allow_untrained)
+        return TVTSynStreaming.from_checkpoint(checkpoint, device, allow_untrained, kw.get("teacher_dirs"))
 
     def requirements(self) -> list[dict[str, Any]]:
         from ..common.teacher_paths import TeacherUnavailable, teacher_dir

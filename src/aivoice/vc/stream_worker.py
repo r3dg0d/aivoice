@@ -653,9 +653,6 @@ class ReproHandler:
             own = req.get("source_reference")
             src = librosa.load(own, sr=self.sample_rate)[0] if own else None
             self.target = e.enroll(ref, source_16k=src)
-        elif self.key.startswith("tvtsyn"):
-            raise RuntimeError("TVTSyn enrollment needs x-vector + ECAPA teachers in the worker; pass "
-                               "precomputed embeddings with --target-embedding (not implemented in the live path yet)")
         else:
             self.target = e.enroll(ref, req.get("cache_dir"))
         return {}

@@ -291,6 +291,12 @@ def file_cmd(input_wav, reference, profile, voice, output, mode, device, backend
     click.echo(str(out))
 
 
+def _repro_engine_names() -> list[str]:
+    from .cli_vc import _repro_choices
+
+    return _repro_choices()
+
+
 @main.command("virtualmic")
 @click.option("--reference", type=click.Path(path_type=Path, exists=True), default=None)
 @click.option("--profile", default=None, help="Legacy profile name")
@@ -304,7 +310,8 @@ def file_cmd(input_wav, reference, profile, voice, output, mode, device, backend
 @click.option("--consent-ack", is_flag=True)
 @click.option("--setup-only", is_flag=True, help="Only create null sink / remap source")
 @click.option("--engine", "rt_engine",
-              type=click.Choice(["rvc", "meanvc2", "tvtsyn", "auto", "xvc", "dsp", "stylestream", "streamvoiceanon", "vossa"]), default=None,
+              type=click.Choice(["rvc", "meanvc2", "tvtsyn", "auto", "xvc", "dsp", "stylestream", "streamvoiceanon", "vossa",
+                                 *_repro_engine_names()]), default=None,
               help="Realtime engine (default: the voice's saved choice; RVC v2 when it has a .pth). Every engine runs "
                    "on aivoice's shared pipeline (fallback, adaptive buffer, live status) unless --legacy-runtime")
 @click.option("--unified", is_flag=True, hidden=True, help="Kept for compatibility: the shared pipeline is the default")
