@@ -48,6 +48,44 @@ than aivoice's assumed 29 M-parameter student (Z-C1): that size is the first thi
 "—" means not measured. These cells are never filled from paper claims. The overfit ratios are final over
 initial training loss, and the gate passes at ≤ 0.5.
 
+## One command: `scripts/aivoice-runtime/train-reproductions.sh`
+
+Trains everything behind the widget's **Experimental engines** (RT-VC, Zero-VC, TVTSyn paper preset, TVTSyn
+80 ms variant; StreamVoiceAnon+ with `--esd DIR`) end to end, then exports and installs each model so the live
+engine finds it. Installed as `~/.local/bin/aivoice-train`.
+
+```bash
+aivoice-train --quick      # ~30 min + downloads: pipeline check on 211 LibriTTS dev-clean utterances (not usable quality)
+aivoice-train              # full run on LibriTTS train-clean-100 (days on one RTX 4090); --subset 360|both
+aivoice-train --status     # done markers, per-stage step / ETA
+aivoice-train --stop       # each stage saves a checkpoint and stops; run again to resume
+```
+
+It runs detached as the `systemd --user` unit `aivoice-repro-train` with `CPUWeight=20 IOWeight=20 Nice=10` and
+at most 8 BLAS/OpenMP threads, so the desktop stays usable (`--foreground` to run in the terminal). It refuses
+to start when the GPU already has more than 16 GiB in use. Downloads are pinned and verified: LibriTTS by the
+SHA-256 torchaudio ships (OpenSLR publishes none), teachers at fixed Hugging Face commits, SPARC's checkpoint by
+its LFS digest (its config is repointed from `microsoft/wavlm-large` on the Hub to the pinned local copy). Every
+step leaves `runs/.done-*`; training resumes from the newest checkpoint. Steps per stage default to the values
+below and can be overridden with `STEPS_<ENGINE>_<STAGE>=N` (e.g. `STEPS_RTVC_VOCODER=100000`). The tiny-overfit
+gate keeps its 0.5x pass mark; only its length is raised where real LibriTTS needs it (TVTSyn content 1000
+steps, RT-VC vocoder 2500).
+
+Teachers are linked into `~/.local/share/aivoice/teachers/<name>`, the default place `aivoice` looks when no
+`--teacher` / `AIVOICE_TEACHER_*` is given, so exports and the live engines (started from the widget) find them.
+A real directory already there is never replaced.
+
+**Measured by the quick run (2026-10-23, RTX 4090).** All four engines trained, passed the gate, exported,
+installed and ran live through the widget's path (`aivoice live --engine <name> --test-input …`, 10.7 s paced):
+RT-VC RTF 0.37 / 0 underruns, Zero-VC 0.56 / 0, TVTSyn 0.66 / 1, TVTSyn-80ms 0.63 / 0; the streaming harness
+(causality, state reset, chunk invariance) passes for each. The run found and fixed: BCE and cuFFT refusing bf16
+(RT-VC pitch / vocoder), teachers unavailable at export and live time, the gate picking utterances shorter than
+Zero-VC's 4 s filter, and TVTSyn's content encoder never leaving the label-marginal plateau (CE stuck at 5.10 ≈
+the k-means label entropy) because of an output LayerNorm the official `ProjectedTransformer` does not have;
+without it CE fell to 2.90 in the same 1400 steps. Not yet resolved: on the 211-utterance quick set Zero-VC's
+discriminator wins outright by step 200 and the generator saturates (output RMS ≈ 1); whether that persists on
+train-clean-100 is not known until a full run, so check the Zero-VC `vc` stage's `mel` curve early.
+
 ## Workflow
 
 ```bash
